@@ -1,0 +1,33 @@
+---
+title: "Loris_a_and_b_diversity_analysis"
+output: html_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+As my contribution to the term project for MICB 305, I will conduct the diversity analysis, both alpha and beta. I will format the plots to look publication appropriate, and the final plots I make will probably be the ones used in the manuscript, provided everything goes well. Feel free to let me know if there's anything I need to change, but try not to work on this script at the same time as I am, so we can avoid any issues with conflicting pushes!
+
+#### Alpha diversity analysis:
+
+Here is my code for the Alpha diversity analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
+
+```{r Alpha_diversity}
+# summary(cars)
+```
+
+## Including Plots
+
+You can also embed plots, for example:
+
+```{r pressure, echo=FALSE}
+plot(pressure)
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
