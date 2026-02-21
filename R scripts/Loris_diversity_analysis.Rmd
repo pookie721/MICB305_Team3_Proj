@@ -12,7 +12,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-As my contribution to the term project for MICB 305, I will conduct the diversity analysis, both alpha and beta. I will format the plots to look publication appropriate, and the final plots I make will probably be the ones used in the manuscript, provided everything goes well. Feel free to let me know if there's anything I need to change, but try not to work on this script at the same time as I am, so we can avoid any issues with conflicting pushes!
+As my contribution to the term project for MICB 305, I will conduct the diversity analysis, both alpha and beta. I will format the plots to look publication appropriate, and the final plots I make will probably be the ones used in the manuscript, provided everything goes well. Feel free to let me know if there's anything I need to change, but try not to work on this script at the same time as I am, so we can avoid any issues with conflicting pushes!!
 
 #### Alpha diversity analysis:
 
