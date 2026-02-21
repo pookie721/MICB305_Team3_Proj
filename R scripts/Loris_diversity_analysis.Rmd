@@ -4,11 +4,7 @@ output: html_document
 date: "`r Sys.Date()`"
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
-## R Markdown
+## Alpha and Beta Diversity analysis
 
 For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
@@ -18,8 +14,57 @@ As my contribution to the term project for MICB 305, I will conduct the diversit
 
 Here is my code for the Alpha diversity analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
-```{r Alpha_diversity}
-# summary(cars)
+```{r Alpha_diversity, fig.height=8, fig.width=7}
+library(tidyverse)
+library(phyloseq)
+library(vegan)
+library(ggpubr)
+
+### Loading in the phyloseq object:
+phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+### Alpha rarefaction curve:
+rarecurve(t(data.frame(phyloseq@otu_table)),
+          step=1500)
+
+# This graph produced above is just a means of visually representing the rarefaction deapth in RStudio, as an alpha rarefaction curve was already made earlier. Based on the rarefaction curve, a reasonable sampling deapth would be between 90,000 to 100,000. However, due to the sheer number of samples, its visually hard to see the ideal deapth with this plot. The actual rarefaction deapth was already decided to be 87,521, based on the alpha raferfaction curve generated in qiime2 and the filtered table. This deapth allows us to keep 29 samples from the 10 days category and 27 samples from the 30 days category of the Time_after_collection metadata variable, leaving plenty of samples to work with. This also allows us to retain 4,886,056 (65.26%) features and only discard 24 samples, still leaving us with over ⅔ of the overall number of samples. When looking at the rarefaction curve, there is also a stagnant plateau at this point, allowing us to justify this rarefaction depth.
+
+### rarefying the data:
+ps_rare = phyloseq %>% rarefy_even_depth(sample.size = 87521, rngseed = 420)
+table(sample_sums(ps_rare))
+# 27 samples were removed because they contained fewer reads than the sample size, and 138 OTUs were removed due to molonger being present in any sample after random sampling. 53 samples remain, which is still plenty for a good analysis.
+
+### Plotting alpha diversity:
+set.seed(365)
+plot_of_richness = plot_richness(ps_rare, x = 'Time_of_Collection_categorical', 
+                  measures = c('Shannon'),
+                  color = 'Time_of_Collection_categorical')
+plot_of_richness
+
+# Pulling the data from the rough plot:
+plot_richness_data = plot_of_richness$data
+# str(plot_richness_data) 
+
+# Ploting alpha diversity again but nicer:
+plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorical,value,fill = Time_of_Collection_categorical)) +
+  geom_boxplot(outlier.shape = NA) + 
+  geom_jitter(height=0,width=0.2) +
+  theme_classic(base_size=15) +
+  facet_grid(~dose_categorical, scales = 'free_y') +
+  facet_wrap(~dose_categorical, scales = 'free_y') +
+  ylab('Alpha Diversity') + xlab(NULL) +
+  theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
+  labs(fill='Time of Collection post-radiation dose', title = "Shannon a-diversity for 4 radiation doses") +
+  theme(legend.position = "bottom")
+plot_formatted
+
+# Finding the difference between groups of interest:
+comparisons = list( c('10_days','30_days'))
+
+plot_formatted +
+  stat_compare_means(comparisons = comparisons, method='wilcox.test', size=5) +
+  scale_y_continuous(expand = expansion(mult = c(0, .1)))
+# Only with the 0.1 Gy dose is tehre a signifficant difference in alpha diversity, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
 ```
 
 ## Including Plots
