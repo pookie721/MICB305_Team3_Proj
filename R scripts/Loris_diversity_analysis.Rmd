@@ -10,7 +10,7 @@ For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
 As my contribution to the term project for MICB 305, I will conduct the diversity analysis, both alpha and beta. I will format the plots to look publication appropriate, and the final plots I make will probably be the ones used in the manuscript, provided everything goes well. Feel free to let me know if there's anything I need to change, but try not to work on this script at the same time as I am, so we can avoid any issues with conflicting pushes!!
 
-#### Alpha diversity analysis:
+#### Rarefaction Alpha diversity analysis:
 
 Here is my code for the Alpha diversity analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
@@ -37,7 +37,7 @@ table(sample_sums(ps_rare))
 ### Plotting alpha diversity:
 set.seed(365)
 plot_of_richness = plot_richness(ps_rare, x = 'Time_of_Collection_categorical', 
-                  measures = c('Shannon'),
+                  measures = c('Observed','Shannon', 'Chao1'),
                   color = 'Time_of_Collection_categorical')
 plot_of_richness
 
@@ -67,12 +67,66 @@ plot_formatted +
 # Only with the 0.1 Gy dose is tehre a signifficant difference in alpha diversity, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
 ```
 
-## Including Plots
+## Beta-diversity analysis:
 
-You can also embed plots, for example:
+Here is my code for the Beta diversity analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
-```{r pressure, echo=FALSE}
-plot(pressure)
+```{r Beta_diversity}
+# Phyloseq object was loaded in earlier and data was also rarefied earlier
+### Plotting Beta-diversity:
+ps_bray = phyloseq::distance(ps_rare, method = "wunifrac")
+View(as.matrix(ps_bray)) # Every pairwise comparison included
+
+# MDS scaling
+# set.seed(421)
+mds = metaMDS(ps_bray)
+
+# Extract data
+mds_data = mds$points %>% as.data.frame %>%
+  merge(sample_data(ps_rare), by='row.names', sort=F)
+head(mds_data)
+
+# Plot it
+plot_beta = mds_data %>%
+  ggplot(aes(MDS1,MDS2,color = body.site)) +
+  geom_point() +
+  stat_ellipse() +
+  theme_classic(base_size=18)
+plot_beta
+
+metadata = sample_data(ps_rare) %>% data.frame() # to make the next lines easier
+
+# Single variable:
+stats_univar = adonis2(ps_bray ~ Time_of_Collection_categorical, data = metadata)
+
+# Two variables to account for the different doses:
+stats_multivar = adonis2(ps_bray ~ body.site + dose_categorical, data = metadata, by = 'margin') 
+
+# Combine into a table
+stats = bind_rows('Univariate' = stats_univar %>% as.data.frame() %>% 
+                    rownames_to_column('Variable'),
+                  'Multivariate' = stats_multivar %>% as.data.frame() %>% 
+                    rownames_to_column('Variable'),
+                  .id = 'Model') # First column is Model, either Uni or Multi
+
+# Add some formatting
+stats = stats %>% rename(Pval = `Pr(>F)`) %>%
+  filter(!is.na(Pval)) # Remove the irrelevant lines
+
+stats # Looks like body site is significant, even when controlling for host!
+
+# Select two body sites to compare
+to_compare = c('gut','tongue')
+
+# List samples that belong to those body sites
+samples_to_keep = metadata %>% filter(body.site %in% to_compare) %>% rownames()
+
+# Subset the distance matrix to only include those samples
+ps_bray_sub = as.matrix(ps_bray)[samples_to_keep,samples_to_keep] %>% as.dist()
+
+# Run a PERMANOVA on just those two body sites
+stats_univar = adonis2(ps_bray_sub ~ body.site,
+                       data = metadata %>% filter(body.site %in% to_compare))
+
+stats_univar
 ```
-
-Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
