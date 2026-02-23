@@ -47,14 +47,15 @@ plot_richness_data = plot_of_richness$data
 
 # Ploting alpha diversity again but nicer:
 plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorical,value,fill = Time_of_Collection_categorical)) +
-  geom_boxplot(outlier.shape = NA) + 
-  geom_jitter(height=0,width=0.2) +
-  theme_classic(base_size=15) +
-  facet_grid(~dose_categorical, scales = 'free_y') +
-  facet_wrap(~dose_categorical, scales = 'free_y') +
+  geom_boxplot(outlier.shape = NA) +
+  scale_fill_manual(values = c('10_days'='pink', '30_days'='lavender')) +
+  geom_jitter(height=0,width=0.1) +
+  theme_classic(base_size=13) +
+  facet_grid(dose_categorical~variable, scales = 'free_y') +
+  facet_wrap(dose_categorical~variable, scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
-  labs(fill='Time of Collection post-radiation dose', title = "Shannon a-diversity for 4 radiation doses") +
+  labs(fill='Time of Collection post-radiation dose', title = "alpha-diversity for 4 radiation doses") +
   theme(legend.position = "bottom")
 plot_formatted
 
@@ -62,7 +63,7 @@ plot_formatted
 comparisons = list( c('10_days','30_days'))
 
 plot_formatted +
-  stat_compare_means(comparisons = comparisons, method='wilcox.test', size=5) +
+  stat_compare_means(comparisons = comparisons, method='wilcox.test', size=4) +
   scale_y_continuous(expand = expansion(mult = c(0, .1)))
 # Only with the 0.1 Gy dose is tehre a signifficant difference in alpha diversity, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
 ```
