@@ -66,6 +66,10 @@ plot_formatted +
   stat_compare_means(comparisons = comparisons, method='wilcox.test', size=4) +
   scale_y_continuous(expand = expansion(mult = c(0, .1)))
 # Only with the 0.1 Gy dose is tehre a signifficant difference in alpha diversity, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
+# 0 Gy dose: Chao1 produced significant results but but Shannon showed no significance and observed was just bareley insignificant at 0.051
+# 0.1 Gy dose: all three tests produced significant results of at least less than 0.005.
+# 0.25 Gy dose: all thee tests had no significant results
+# 1.0 Gy dose: all thee tests had no significant results
 ```
 
 ## Beta-diversity analysis:
