@@ -108,7 +108,7 @@ plot_beta
 # Calculating the stats:
 metadata = sample_data(ps_rare) %>% data.frame()
 
-# singel variable:
+# single variable:
 stats_univar = adonis2(ps_bray ~ Time_of_Collection_categorical, data = metadata)
 
 # Two variables to account for the different doses:
@@ -121,23 +121,23 @@ stats = bind_rows('Univariate' = stats_univar %>% as.data.frame() %>%
                     rownames_to_column('Variable'),
                   .id = 'Model')
 
-# Add some formatting
+# Add some formatting:
 stats = stats %>% rename(Pval = `Pr(>F)`) %>%
   filter(!is.na(Pval)) # Remove the irrelevant lines
 stats
 
-# Select two body sites to compare
-to_compare = c('gut','tongue')
+# Based on the results from the Alpha diversity analysis, I will compare the 0 Gy dose and 0.1 Gy dose, first seeing what happens without controlling for the time of collection and then maybe controlling for it.
+to_compare = c('0_dose','0.1_dose')
 
 # List samples that belong to those body sites
-samples_to_keep = metadata %>% filter(body.site %in% to_compare) %>% rownames()
+samples_to_keep = metadata %>% filter(dose_categorical %in% to_compare) %>% rownames()
 
 # Subset the distance matrix to only include those samples
 ps_bray_sub = as.matrix(ps_bray)[samples_to_keep,samples_to_keep] %>% as.dist()
 
 # Run a PERMANOVA on just those two body sites
-stats_univar = adonis2(ps_bray_sub ~ body.site,
-                       data = metadata %>% filter(body.site %in% to_compare))
+stats_univar = adonis2(ps_bray_sub ~ dose_categorical,
+                       data = metadata %>% filter(dose_categorical %in% to_compare))
 
 stats_univar
 ```

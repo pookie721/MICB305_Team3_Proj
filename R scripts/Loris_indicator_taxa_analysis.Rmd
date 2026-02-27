@@ -1,0 +1,60 @@
+---
+title: "Loris_indicator_taxa_analysis"
+output: html_document
+---
+
+## Indicator Taxa Analysis
+
+For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+Since my work on the diversity analysis took less time than expected, I will also work on indicator taxa analysis, to fulfill Aim 2 of the final research paper. Given that this is sort of a secondary responsibility of mine, and I still have some work to do on the diversity plots, I may not finish this as soon as is ideal, but feel free to use the code I have to run your own indicator species analysis in parallel. I may do some differential abundance work with ANCOMBC and maybe some core micro biome analysis if I get nothing useful out of indicpecies.
+
+#### Indicator taxa analysis with indicpecies:
+
+Here is my code for the indicator taxa analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
+
+```{r Indicator Taxa Analysis}
+library(tidyverse)
+library(phyloseq)
+library(microbiome)
+library(indicspecies)
+library(ANCOMBC)
+
+phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+# In Assignment 5, running multipatt on the unfiltered sample data resulted in all the P values spitting out NA. The TA mentioned it may be because of the 0 Gy dose samples. As such, Im going to run indicator taxa analysis on all the radiation doses sepparateley for the times of collection.
+sub_ps_0.1 = prune_samples(sample_data(phyloseq)$dose_categorical == '0.1_dose', phyloseq)
+sub_ps_0.25 = prune_samples(sample_data(phyloseq)$dose_categorical == '0.25_dose', phyloseq)
+sub_ps_1 = prune_samples(sample_data(phyloseq)$dose_categorical == '1_dose', phyloseq)
+sub_ps_0 = prune_samples(sample_data(phyloseq)$dose_categorical == '0_dose', phyloseq)
+
+# Im starting with the 0.1 Gy dose since it produced the most significant results in alpha diversity analysis
+
+ps_Genus_0.1 = tax_glom(sub_ps_0.1,'Genus')
+ps_relab_0.1 = transform(ps_Genus_0.1, 'compositional')
+ps_filt_0.1 = filter_taxa(ps_relab_0.1, function(x) mean(x) > 0.001, TRUE)
+Analysis_otu_table_0.1 = data.frame(otu_table(ps_filt_0.1))
+
+set.seed(421)
+indval = multipatt( t(Analysis_otu_table), 
+            cluster= ps_filt@sam_data$Time_of_Collection_categorical,
+ 		  control = how(nperm = 999) )
+
+summary(indval, indvalcomp = TRUE)
+
+# Extract into table
+indval_table = as.data.frame(indval$sign)
+
+# Plot the two taxa that are indicators for the gut
+phyla_to_plot = indval_table %>% 
+  filter(s.gut==1 & s.tongue==0 & `s.left palm`==0 & `s.right palm`==0 ) %>% 
+  rownames()
+
+df_of_taxa = prune_taxa(phyla_to_plot, ps_filt) %>% psmelt()
+
+df_of_taxa %>% 
+  ggplot(aes(body.site,Abundance,fill=body.site)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height=0, width=0.2) +
+  facet_wrap(~Phylum, ncol = 4, scales = 'free')
+```
