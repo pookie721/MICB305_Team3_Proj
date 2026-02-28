@@ -63,7 +63,7 @@ plot_formatted
 comparisons = list( c('10_days','30_days'))
 
 plot_formatted +
-  stat_compare_means(comparisons = comparisons, method='wilcox.test', size=4) +
+  stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
   scale_y_continuous(expand = expansion(mult = c(0, .1)))
 # Only with the 0.1 Gy dose is tehre a signifficant difference in alpha diversity, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
 # 0 Gy dose: Chao1 produced significant results but but Shannon showed no significance and observed was just bareley insignificant at 0.051
@@ -125,6 +125,36 @@ stats = bind_rows('Univariate' = stats_univar %>% as.data.frame() %>%
 stats = stats %>% rename(Pval = `Pr(>F)`) %>%
   filter(!is.na(Pval)) # Remove the irrelevant lines
 stats
+
+# alternative:
+run_adonis <- function(dose_rad) {
+# Subset metadata for the desired radiation dose
+  meta_sub <- metadata %>%
+    filter(dose_categorical == dose_rad,
+           Time_of_Collection_categorical %in% c("10_days", "30_days"))
+# Subseting the distance matrix to the same samples
+  dist_sub <- as.dist(as.matrix(ps_bray)[rownames(meta_sub), rownames(meta_sub)])
+# Run PERMANOVA (adonis2)
+  res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
+                 data = meta_sub)
+# Convert to a dataframe and add the dose
+  res_df <- as.data.frame(res) %>%
+    rownames_to_column("Variable") %>%
+    mutate(dose = dose_rad)
+
+  return(res_df)
+}
+
+radiation_levels = unique(metadata$dose_categorical)
+
+pairwise_stats = lapply(radiation_levels, run_adonis) %>%
+  bind_rows()
+
+pairwise_stats = pairwise_stats %>%
+  rename(Pval = `Pr(>F)`) %>%
+  filter(!is.na(Pval)) %>%
+  mutate(Pval = round(Pval, 4))
+pairwise_stats
 
 # Based on the results from the Alpha diversity analysis, I will compare the 0 Gy dose and 0.1 Gy dose, first seeing what happens without controlling for the time of collection and then maybe controlling for it.
 to_compare = c('0_dose','0.1_dose')
