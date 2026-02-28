@@ -7,11 +7,11 @@ output: html_document
 
 For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-Since my work on the diversity analysis took less time than expected, I will also work on indicator taxa analysis, to fulfill Aim 2 of the final research paper. Given that this is sort of a secondary responsibility of mine, and I still have some work to do on the diversity plots, I may not finish this as soon as is ideal, but feel free to use the code I have to run your own indicator species analysis in parallel. I may do some differential abundance work with ANCOMBC and maybe some core micro biome analysis if I get nothing useful out of indicpecies.
+Since my work on the diversity analysis took less time than expected, I will also work on indicator taxa analysis, to fulfill Aim 2 of the final research paper. Due to the indicator species analysis being pretty much already completed, I'm using this file to investigate differential abundance with ANCOM-BC2 instead. I may use this file to also do core microbiome analysis as well, if time permits.
 
-#### Indicator taxa analysis with indicpecies:
+#### Differential abundance with ANCOM-BC2:
 
-Here is my code for the indicator taxa analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
+Here is my code for the differential abundance analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
 ```{r Indicator Taxa Analysis}
 library(tidyverse)
@@ -22,39 +22,54 @@ library(ANCOMBC)
 
 phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
 
-# In Assignment 5, running multipatt on the unfiltered sample data resulted in all the P values spitting out NA. The TA mentioned it may be because of the 0 Gy dose samples. As such, Im going to run indicator taxa analysis on all the radiation doses sepparateley for the times of collection.
-sub_ps_0.1 = prune_samples(sample_data(phyloseq)$dose_categorical == '0.1_dose', phyloseq)
-sub_ps_0.25 = prune_samples(sample_data(phyloseq)$dose_categorical == '0.25_dose', phyloseq)
-sub_ps_1 = prune_samples(sample_data(phyloseq)$dose_categorical == '1_dose', phyloseq)
-sub_ps_0 = prune_samples(sample_data(phyloseq)$dose_categorical == '0_dose', phyloseq)
-
-# Im starting with the 0.1 Gy dose since it produced the most significant results in alpha diversity analysis
-
-ps_Genus_0.1 = tax_glom(sub_ps_0.1,'Genus')
-ps_relab_0.1 = transform(ps_Genus_0.1, 'compositional')
-ps_filt_0.1 = filter_taxa(ps_relab_0.1, function(x) mean(x) > 0.001, TRUE)
-Analysis_otu_table_0.1 = data.frame(otu_table(ps_filt_0.1))
+# Aggregating to the genus level
+ps_genus_glom = tax_glom(phyloseq, 'Genus')
 
 set.seed(421)
-indval = multipatt( t(Analysis_otu_table), 
-            cluster= ps_filt@sam_data$Time_of_Collection_categorical,
- 		  control = how(nperm = 999) )
+ancombc2_out = ancombc2(data = ps_genus_glom, 
+               fix_formula = 'Time_of_Collection_categorical*dose_categorical', 
+               p_adj_method = 'BH',
+               prv_cut = 0.1)
 
-summary(indval, indvalcomp = TRUE)
+statistical_table = ancombc2_out$res
 
-# Extract into table
-indval_table = as.data.frame(indval$sign)
+#writexl::write_xlsx(statistical_table,'../Results/Tables/Module 14 - ANCOMBC Results.xlsx')
 
-# Plot the two taxa that are indicators for the gut
-phyla_to_plot = indval_table %>% 
-  filter(s.gut==1 & s.tongue==0 & `s.left palm`==0 & `s.right palm`==0 ) %>% 
-  rownames()
+# Filter stats to only include taxa that are differentially abundant between the time points:
+taxa_to_plot = statistical_table %>% 
+  filter(diff_robust_Time_of_Collection_categorical30_days==T) 
 
-df_of_taxa = prune_taxa(phyla_to_plot, ps_filt) %>% psmelt()
+# Alternatively, since the previous method got lots of falses (only 1 paired diff robust collumn returned true):
+ancombc2_by_dose <- function(dose_for_ancom) {
+  # Subsetting the phyloseq object (like in beta diversity)
+  ps_sub <- subset_samples(ps_genus_glom,
+                           dose_categorical == dose_for_ancom)
+  # Droping taxa with zero counts after the subsetting
+  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+  # Run ANCOM-BC2 test
+  out <- ancombc2(
+    data = ps_sub,
+    fix_formula = "Time_of_Collection_categorical",
+    p_adj_method = "BH",
+    prv_cut = 0.1
+  )
+  # Extracting the results
+  res <- out$res %>%
+    mutate(dose = dose_for_ancom)
 
-df_of_taxa %>% 
-  ggplot(aes(body.site,Abundance,fill=body.site)) +
-  geom_boxplot(outlier.shape = NA) +
-  geom_jitter(height=0, width=0.2) +
-  facet_wrap(~Phylum, ncol = 4, scales = 'free')
+  return(res)
+}
+
+dose_levels = unique(sample_data(ps_genus_glom)$dose_categorical)
+
+all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+  bind_rows()
+
+# Plot the log 2 fold changes
+# Note: you'll have to figure out how to plot the genera names instead of the
+# representative ASV names!
+taxa_to_plot %>%
+  ggplot(aes(taxon,lfc_Time_of_Collection_categorical30_days)) +
+  geom_col() +
+  coord_flip()
 ```
