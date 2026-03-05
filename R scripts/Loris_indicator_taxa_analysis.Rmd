@@ -43,7 +43,7 @@ taxa_to_plot = statistical_table %>%
 ancombc2_by_dose <- function(dose_for_ancom) {
   # Subsetting the phyloseq object (like in beta diversity)
   ps_sub <- subset_samples(ps_genus_glom,
-                           dose_categorical == dose_for_ancom)
+                           dose_categorical == get(dose_for_ancom))
   # Droping taxa with zero counts after the subsetting
   ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
   # Run ANCOM-BC2 test
@@ -54,6 +54,30 @@ ancombc2_by_dose <- function(dose_for_ancom) {
     prv_cut = 0.1
   )
   # Extracting the results
+  res <- out$res %>%
+    mutate(dose = dose_for_ancom)
+
+  return(res)
+}
+
+# function 2.0 (runs but takes a terribly long time):
+ancombc2_by_dose <- function(dose_for_ancom) {
+
+  samples_keep <- sample_names(ps_genus_glom)[
+    sample_data(ps_genus_glom)$dose_categorical == dose_for_ancom
+  ]
+
+  ps_sub <- prune_samples(samples_keep, ps_genus_glom)
+
+  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+
+  out <- ancombc2(
+    data = ps_sub,
+    fix_formula = "Time_of_Collection_categorical",
+    p_adj_method = "BH",
+    prv_cut = 0.1
+  )
+
   res <- out$res %>%
     mutate(dose = dose_for_ancom)
 
