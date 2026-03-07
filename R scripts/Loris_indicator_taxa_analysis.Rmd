@@ -92,8 +92,18 @@ all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
 # Plot the log 2 fold changes
 # Note: you'll have to figure out how to plot the genera names instead of the
 # representative ASV names!
-taxa_to_plot %>%
-  ggplot(aes(taxon,lfc_Time_of_Collection_categorical30_days)) +
+
+genus_table = tax_table(ps_genus_glom) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("taxon")
+
+all_DA_results = all_DA_results %>%
+  left_join(genus_table, by = "taxon")
+
+all_DA_results %>%
+  ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days)) +
   geom_col() +
   coord_flip()
+
+# On second thought, I may aggregate to family or maybe even order
 ```
