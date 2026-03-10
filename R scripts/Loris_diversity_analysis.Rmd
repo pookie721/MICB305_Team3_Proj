@@ -55,22 +55,25 @@ plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorica
   facet_wrap(dose_categorical~variable, scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
-  labs(fill='Time of Collection post-radiation dose', title = "alpha-diversity for 4 radiation doses") +
+  labs(fill='Time of Collection post-radiation dose', title = "Alpha-diversity for 4 radiation doses") +
   theme(legend.position = "bottom")
 plot_formatted
 
 # Finding the difference between groups of interest:
 comparisons = list( c('10_days','30_days'))
 
-plot_formatted +
+suplementary_plot <- plot_formatted +
   stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
   scale_y_continuous(expand = expansion(mult = c(0, .1)))
+suplementary_plot
 
 # Only with the 0.1 Gy dose is there a significant difference in alpha diversity for all measurements, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
 # 0 Gy dose: Observed and Chao1 produced significant results but but Shannon showed no significant difference. Given thet Shannon takes into account both richness and evenness, this measurements results are probably better to go with.
 # 0.1 Gy dose: all three tests produced significant results of at least less than 0.005. Observed and Chao1 in particular got p-values of close to zero (magnitude of e-0.5).
 # 0.25 Gy dose: all three tests showed no significant differences.
 # 1.0 Gy dose: all three tests showed no significant differences.
+
+ggsave("../Results/LT_Suplementary_alpha_diversity.png", plot = suplementary_plot, width = 7, height = 7.5, units = "in")
 ```
 
 #### Alpha diversity plot for publication
@@ -106,12 +109,14 @@ Shannon_formatted
 # Finding the difference between groups of interest:
 comparisons = list( c('10_days','30_days'))
 
-Shannon_formatted +
+shannon_for_pub <- Shannon_formatted +
   stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
   scale_y_continuous(expand = expansion(mult = c(0, .1)))
+shannon_for_pub
 
 # Only the 0.1 Gy dose shwoed significant differneces in alpha diversity between 10 and 30 days post treatment.
 # Alligns with previous literature.
+ggsave("../Results/LT_Shannon_diversity.png", plot = shannon_for_pub, width = 7, height = 7.3, units = "in")
 ```
 
 #### Beta-diversity analysis:
@@ -147,6 +152,7 @@ plot_beta = mds_data %>%
   theme(legend.position = "bottom")
 plot_beta
 
+ggsave("../Results/LT_Beta_diversity_nopval.png", plot = plot_beta, width = 7, height = 7.3, units = "in")
 # Calculating the stats:
 metadata = sample_data(ps_rare) %>% data.frame()
 
