@@ -105,5 +105,19 @@ all_DA_results %>%
   geom_col() +
   coord_flip()
 
-# On second thought, I may aggregate to family or maybe even order
+# doing the same thing but for family:
+ps_family_glom = tax_glom(phyloseq, 'Family')
+
+dose_levels_2 = unique(sample_data(ps_family_glom)$dose_categorical)
+
+all_DA_results = lapply(dose_levels_2, ancombc2_by_dose) %>%
+  bind_rows()
+
+family_table = tax_table(ps_family_glom) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("taxon")
+
+all_DA_results = all_DA_results %>%
+  left_join(family_table, by = "taxon")
+# never mind, too many NAs
 ```
