@@ -19,6 +19,8 @@ library(tidyverse)
 library(phyloseq)
 library(vegan)
 library(ggpubr)
+#install.packages('picante')
+library(picante)
 
 ### Loading in the phyloseq object:
 phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
@@ -218,4 +220,60 @@ stats_univar = adonis2(ps_bray_sub ~ dose_categorical,
                        data = metadata %>% filter(dose_categorical %in% to_compare))
 
 stats_univar
+```
+
+#### Faith's Phylogenetic Diversity analysis:
+
+Here is my code for the Beta diversity analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
+
+```{r Faith_PD, fig.height=7, fig.width=7}
+# Setup ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+# taxa must be columns instead of rows, this will convert it if needed
+otu = as(otu_table(ps_rare), "matrix")
+if(taxa_are_rows(ps_rare)==TRUE) otu <- t(otu)
+
+# Extract your phyloseq object's tree
+tree = phy_tree(ps_rare)
+
+# check that all the ASV names match between OTU table and tree
+stopifnot(all(colnames(otu) %in% tree$tip.label))
+# reorder tree tips to match ASV order, if needed:
+# Won't hurt to run this on your data if it's unnecessary.
+#    remove any unmatched tips
+tree = drop.tip(tree, setdiff(tree$tip.label, colnames(otu)))
+#    reorder to match
+tree = keep.tip(tree, colnames(otu))
+
+# (tree is rooted so no need to manually root)
+# Calculate Faith's PD for each sample ~~~~~~~~~~~~
+#    1. Convert reads to presence/absence and pull into a matrix
+otu_pa = otu # Make a copy of your data, then...
+otu_pa[otu_pa>0] = 1 #...convert to presence/absence (1 for present, 0 for absent)
+#    2. Calculate metric
+faith_metrics = pd(otu_pa, tree, include.root = TRUE) %>% select(-SR)
+
+# plotting:
+metadata = sample_data(ps_rare) %>% data.frame()
+combined_data <- cbind(metadata, faith_metrics)
+
+Faith_plot = ggplot(combined_data, aes(x = Time_of_Collection_categorical, y = PD, fill = Time_of_Collection_categorical)) +
+  geom_boxplot(outlier.shape = NA) +
+  theme_classic(base_size = 13) +
+  scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
+  geom_jitter(height=0,width=0.1) +
+  facet_grid(~dose_categorical, scales = 'free_y') +
+  facet_wrap(~dose_categorical, scales = 'free_y') +
+  ylab('Phylogenetic Diversity') + xlab(NULL) +
+  theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
+  labs(fill='Time of Collection post-radiation dose', title = "Faith's Phylogenetic Diversity for 4 radiation doses") +
+  theme(legend.position = "bottom")
+Faith_plot
+
+# Calculating and adding metrics:
+comparisons = list( c('10_days','30_days'))
+
+Faith_with_pval <- Faith_plot +
+  stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
+  scale_y_continuous(expand = expansion(mult = c(0, .2)))
+Faith_with_pval
 ```
