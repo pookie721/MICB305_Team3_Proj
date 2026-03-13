@@ -89,10 +89,7 @@ dose_levels = unique(sample_data(ps_genus_glom)$dose_categorical)
 all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
   bind_rows()
 
-# Plot the log 2 fold changes
-# Note: you'll have to figure out how to plot the genera names instead of the
-# representative ASV names!
-
+# Plot the log 2 fold changes:
 genus_table = tax_table(ps_genus_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
@@ -111,4 +108,64 @@ all_DA_results %>%
   labs(title = "Differential abundance for 4 radiation doses") +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 
+```
+
+#### Differential abundance with ANCOM-BC2 (class-level):
+
+This is basically the same thing as above but aggregated to a higher taxonomic level, to see if the plots look better. A new code chunk is being made since the entire analysis needs a new custom function.
+
+```{r Phylum-level_analysis, fig.height=9, fig.width=8.5}
+# the same phyloseq object is being used as above.
+# aggregating to the class level:
+ps_class_glom = tax_glom(phyloseq, 'Class')
+
+# same function but tailored to the new phyloseq objects:
+ancombc2_by_dose <- function(dose_for_ancom) {
+
+  samples_keep <- sample_names(ps_class_glom)[
+    sample_data(ps_class_glom)$dose_categorical == dose_for_ancom
+  ]
+
+  ps_sub <- prune_samples(samples_keep, ps_class_glom)
+
+  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+
+  out <- ancombc2(
+    data = ps_sub,
+    fix_formula = "Time_of_Collection_categorical",
+    p_adj_method = "BH",
+    prv_cut = 0.1
+  )
+
+  res <- out$res %>%
+    mutate(dose = dose_for_ancom)
+
+  return(res)
+}
+
+dose_levels = unique(sample_data(ps_class_glom)$dose_categorical)
+
+all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+  bind_rows()
+
+# plotting log2 fold changes:
+class_table = tax_table(ps_class_glom) %>%
+  as.data.frame() %>%
+  tibble::rownames_to_column("taxon")
+
+all_DA_results = all_DA_results %>%
+  left_join(class_table, by = "taxon")
+
+all_DA_results %>%
+  ggplot(aes(Class,lfc_Time_of_Collection_categorical30_days, fill = Phylum)) +
+  geom_col() +
+  coord_flip() +
+  theme_classic(base_size = 13) +
+  facet_grid(~dose, scales = 'free_y') +
+  facet_wrap(~dose, scales = 'free_y') +
+  ylab('Log-2 fold change') + xlab(NULL) +
+  labs(title = "Differential abundance for 4 radiation doses") +
+  theme(legend.position = "bottom", legend.direction = "horizontal")
+
+# Visually it looks alot better aggregated to class, not so squished as before. Even ehen plotting the genus-aggregation at family level, the whole thing was still super packed.
 ```
