@@ -97,8 +97,11 @@ genus_table = tax_table(ps_genus_glom) %>%
 all_DA_results = all_DA_results %>%
   left_join(genus_table, by = "taxon")
 
-all_DA_results %>%
-  ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
+# filtering for only Log fold changes above 1
+all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+
+all_DA_results_best %>%
+  ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Family)) +
   geom_col() +
   coord_flip() +
   theme_classic(base_size = 13) +
@@ -156,7 +159,10 @@ class_table = tax_table(ps_class_glom) %>%
 all_DA_results = all_DA_results %>%
   left_join(class_table, by = "taxon")
 
-all_DA_results %>%
+# filtering for only Log fold changes above 1
+all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+
+all_DA_results_best %>%
   ggplot(aes(Class,lfc_Time_of_Collection_categorical30_days, fill = Phylum)) +
   geom_col() +
   coord_flip() +
@@ -214,8 +220,11 @@ family_table = tax_table(ps_family_glom) %>%
 all_DA_results = all_DA_results %>%
   left_join(family_table, by = "taxon")
 
-all_DA_results %>%
-  ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days, fill = Phylum)) +
+# filtering for only Log fold changes above 1
+all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+
+all_DA_results_best %>%
+  ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
   theme_classic(base_size = 13) +
