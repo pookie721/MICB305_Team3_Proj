@@ -1,0 +1,125 @@
+## Load libraries
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(indicspecies)
+library(microbiome)
+```
+
+## Load data
+
+```{r}
+metadata = read.delim('./Datasets/radiation_lab_metadata_improved.txt', row.names = 1)
+taxonomy = read.delim('./Datasets/taxonomy.tsv', row.names = 1)
+counts = read.delim('./Datasets/feature-table.txt', skip=1, row.names=1, check.names = FALSE)  
+tree = read_tree('./Datasets/tree.nwk')
+
+# Merge time categorical and dose categorical
+metadata = metadata %>%
+  mutate(time_dose = paste(Time_of_Collection_categorical, dose_categorical, sep = "_"))
+```
+
+## Phyloseq object
+
+```{r}
+taxonomy_formatted = taxonomy %>% 
+  separate(col = Taxon, 
+           into = c('Domain','Phylum','Class','Order',
+                    'Family','Genus','Species'),
+           sep=';', fill='right') %>% 
+  select(-Confidence) %>% 
+  as.matrix()
+
+counts_formatted = counts %>% 
+  as.matrix()
+
+ps = phyloseq(sample_data(metadata),
+              otu_table(counts_formatted, taxa_are_rows = T),
+              tax_table(taxonomy_formatted),
+              tree)
+
+saveRDS(ps,'./Datasets/phyloseq_taxonomy.rds')
+```
+
+## Load data
+
+```{r}
+ps = readRDS('./Datasets/phyloseq_taxonomy.rds')
+```
+
+## Indicator species analysis
+
+```{r}
+# Aggregate ASVs, convert phyloseq to relative abundance, and apply abundance filter
+
+ps_genus = tax_glom(ps,'Genus')
+ps_relab = transform(ps_genus, 'compositional')
+ps_filt = filter_taxa(ps_relab, function(x) mean(x) > 0.001, TRUE)
+otu_table = data.frame(otu_table(ps_filt))
+
+set.seed(123)
+indval = multipatt( t(otu_table), 
+            cluster= ps_filt@sam_data$time_dose,
+ 		  control = how(nperm = 999) )
+
+summary(indval, indvalcomp = TRUE)
+
+# Extract into table
+indval_table = as.data.frame(indval$sign)
+```
+
+```{r}
+library(ggpubr)
+
+# Process the indicator species results
+# First, let's extract the significant results (p-value < 0.05)
+indval_significant = indval_table %>%
+  filter(p.value < 0.05 & stat > 0.7) %>%
+  select(s.10_days_0_dose:p.value) %>%
+  rownames_to_column("ASV")
+
+# Reshape the data for plotting
+indval_long = indval_significant %>%
+  pivot_longer(cols = starts_with("s."), 
+               names_to = "time_dose", 
+               values_to = "indicator") %>%
+  mutate(time_dose = str_remove(time_dose, "^s\\.")) %>%
+  filter(indicator == 1)  # Keep only the groups they're indicators for
+
+# Get taxonomy information for the significant ASVs
+tax_significant = tax_table(ps_filt) %>%
+  as.data.frame() %>%
+  rownames_to_column("ASV") %>%
+  filter(ASV %in% indval_long$ASV) %>%
+  mutate(tax_label = paste(Genus, " (", ASV, ")"))
+
+# Join with indicator data
+indval_plot_data = indval_long %>%
+  left_join(tax_significant %>% select(ASV, tax_label, Class)) %>%
+  left_join(indval_significant %>% select(ASV, stat, p.value))
+
+# Create the dot plot
+ind_plot = ggplot(indval_plot_data, aes(x = time_dose, 
+                                        y = tax_label, 
+                                        size = stat,
+                                        color = Class)) +
+  geom_point(alpha = 0.7) +
+  scale_size_continuous(range = c(2, 8), 
+                        name = "Indicator Statistic") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        axis.text.y = element_text(size = 8),
+        legend.position = "right",
+        panel.grid.major.x = element_line(color = "gray90", linetype = "dashed"),
+        panel.grid.minor = element_blank()) +
+  labs(x = "Radiation Time and Dose ",
+       y = "Indicator ASV (Genus - ASV ID)",
+       title = "Indicator Species Across Time and Dose Combinations",
+       color = "Phylum") +
+  guides(size = guide_legend(override.aes = list(alpha = 1)))
+
+ind_plot
+
+ggsave("./Results/indicator_species_dotplot.png", width = 12, height = 8)
+```
