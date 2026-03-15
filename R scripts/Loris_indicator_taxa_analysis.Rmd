@@ -13,12 +13,13 @@ Since my work on the diversity analysis took less time than expected, I will als
 
 Here is my code for the differential abundance analysis. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
-```{r Indicator Taxa Analysis, fig.height=9, fig.width=8.5}
+```{r Indicator Taxa Analysis, fig.height=4.5, fig.width=8}
 library(tidyverse)
 library(phyloseq)
 library(microbiome)
 library(indicspecies)
 library(ANCOMBC)
+library(scales)
 
 phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
 
@@ -26,42 +27,9 @@ phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
 ps_genus_glom = tax_glom(phyloseq, 'Genus')
 
 set.seed(421)
-ancombc2_out = ancombc2(data = ps_genus_glom, 
-               fix_formula = 'Time_of_Collection_categorical*dose_categorical', 
-               p_adj_method = 'BH',
-               prv_cut = 0.1)
-
-statistical_table = ancombc2_out$res
-
-#writexl::write_xlsx(statistical_table,'../Results/Tables/Module 14 - ANCOMBC Results.xlsx')
-
-# Filter stats to only include taxa that are differentially abundant between the time points:
-taxa_to_plot = statistical_table %>% 
-  filter(diff_robust_Time_of_Collection_categorical30_days==T) 
-
-# Alternatively, since the previous method got lots of falses (only 1 paired diff robust collumn returned true):
-ancombc2_by_dose <- function(dose_for_ancom) {
-  # Subsetting the phyloseq object (like in beta diversity)
-  ps_sub <- subset_samples(ps_genus_glom,
-                           dose_categorical == get(dose_for_ancom))
-  # Droping taxa with zero counts after the subsetting
-  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
-  # Run ANCOM-BC2 test
-  out <- ancombc2(
-    data = ps_sub,
-    fix_formula = "Time_of_Collection_categorical",
-    p_adj_method = "BH",
-    prv_cut = 0.1
-  )
-  # Extracting the results
-  res <- out$res %>%
-    mutate(dose = dose_for_ancom)
-
-  return(res)
-}
-
-# function 2.0 (runs but takes a terribly long time):
-ancombc2_by_dose <- function(dose_for_ancom) {
+# custom function for Ancom-bc2 (has a weird printout):
+# "G" is being used to denote that this is for the geneus aggregate specifically, as the functions need to be custom for each aggregation. 
+ancombc2_by_dose_G <- function(dose_for_ancom) {
 
   samples_keep <- sample_names(ps_genus_glom)[
     sample_data(ps_genus_glom)$dose_categorical == dose_for_ancom
@@ -86,7 +54,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_genus_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_G = lapply(dose_levels, ancombc2_by_dose_G) %>%
   bind_rows()
 
 # Plot the log 2 fold changes:
@@ -94,14 +62,15 @@ genus_table = tax_table(ps_genus_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_G = all_DA_results_G %>%
   left_join(genus_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+G_DA_results_best = all_DA_results_G %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1.5) %>% filter(dose != "0_dose")
+G_DA_results_best$Genus <- str_wrap(G_DA_results_best$Genus, width = 16)
 
-all_DA_results_best %>%
-  ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Family)) +
+G_DA_results_best %>%
+  ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
   theme_classic(base_size = 13) +
@@ -117,13 +86,13 @@ all_DA_results_best %>%
 
 This is basically the same thing as above but aggregated to a higher taxonomic level, to see if the plots look better. A new code chunk is being made since the entire analysis needs a new custom function.
 
-```{r Class-level_analysis, fig.height=9, fig.width=8.5}
+```{r Class-level_analysis, fig.height=4, fig.width=8.5}
 # the same phyloseq object is being used as above.
 # aggregating to the class level:
 ps_class_glom = tax_glom(phyloseq, 'Class')
 
 # same function but tailored to the new phyloseq objects:
-ancombc2_by_dose <- function(dose_for_ancom) {
+ancombc2_by_dose_C <- function(dose_for_ancom) {
 
   samples_keep <- sample_names(ps_class_glom)[
     sample_data(ps_class_glom)$dose_categorical == dose_for_ancom
@@ -148,7 +117,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_class_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_C = lapply(dose_levels, ancombc2_by_dose_C) %>%
   bind_rows()
 
 # plotting log2 fold changes:
@@ -156,13 +125,13 @@ class_table = tax_table(ps_class_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_C = all_DA_results_C %>%
   left_join(class_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+C_DA_results_best = all_DA_results_C %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
 
-all_DA_results_best %>%
+C_DA_results_best %>%
   ggplot(aes(Class,lfc_Time_of_Collection_categorical30_days, fill = Phylum)) +
   geom_col() +
   coord_flip() +
@@ -180,11 +149,11 @@ all_DA_results_best %>%
 
 This is basically the same thing as above but aggregated to the Family level, to hopefully get the ideal plot. A new code chunk is being made since the entire analysis also needs a new custom function. Hopefully this will be less cramped than the genus aggregation but have better discernment than class or phylum aggregations.
 
-```{r Family-level analysis, fig.height=9, fig.width=8.5}
+```{r Family-level analysis, fig.height=4.25, fig.width=8.5}
 ps_family_glom = tax_glom(phyloseq, 'Family')
 
 # same function but tailored to the new phyloseq objects:
-ancombc2_by_dose <- function(dose_for_ancom) {
+ancombc2_by_dose_F <- function(dose_for_ancom) {
 
   samples_keep <- sample_names(ps_family_glom)[
     sample_data(ps_family_glom)$dose_categorical == dose_for_ancom
@@ -209,7 +178,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_family_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_F = lapply(dose_levels, ancombc2_by_dose_F) %>%
   bind_rows()
 
 # plotting log2 fold changes:
@@ -217,13 +186,13 @@ family_table = tax_table(ps_family_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_F = all_DA_results_F %>%
   left_join(family_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+F_DA_results_best = all_DA_results_F %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
 
-all_DA_results_best %>%
+F_DA_results_best %>%
   ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
