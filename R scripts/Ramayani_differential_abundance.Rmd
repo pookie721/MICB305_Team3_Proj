@@ -1,0 +1,42 @@
+---
+title: "Ramayani_differential_abundance"
+output: html_document
+date: "2026-03-18"
+---
+
+```{r}
+library(ANCOMBC)
+library(tidyverse)
+
+set.seed(321)
+
+ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+ps_glom = tax_glom(ps, 'Genus')
+
+```
+
+```{r}
+output = ancombc2(ps_glom, rank = taxonomic_level,
+          fix_formula = "Time_of_Collection_categorical",
+          p_adj_method = "BH",
+          prv_cut = 0.1 )
+
+statistical_table = output$res
+```
+
+```{r}
+taxa_to_plot = statistical_table %>%
+  filter(diff_robust_Time_of_Collection_categorical30_days==T)
+
+taxa_to_plot %>%
+  ggplot(aes(taxon,lfc_Time_of_Collection_categorical30_days)) +
+  geom_col() +
+  coord_flip()
+
+# only 2 outputs at genus level
+# only 2 outputs at the Family level
+# only 2 outputs at the Order level
+# none at class level
+```
+

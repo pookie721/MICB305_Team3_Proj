@@ -3,63 +3,38 @@ title: "indicator_species_analysis"
 output: html_document
 ---
 
+Loading Libraries and Dataset
 
 ```{r}
-library(tidyverse)
 library(phyloseq)
 library(indicspecies)
-library(dplyr)
-library(vegan)
-library(ggpubr)
-library(microbiome)
-library(indicspecies)
+library(tidyverse)
 
-metadata = read.delim('../Datasets/radiation_lab_metadata_improved.txt', row.names = 1)
-taxonomy = read.delim('../Datasets/taxonomy.tsv', row.names = 1) 
-counts = read.delim('../Datasets/feature-table.txt', skip=1, row.names=1, check.names = FALSE)
-tree = read_tree('../Datasets/tree.nwk')
+ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+```
 
-taxonomy_formatted = taxonomy %>%
-  separate(col = Taxon, 
-           into = c('Domain','Phylum','Class','Order',
-                    'Family','Genus','Species'),
-           sep=';', fill='right') %>% 
-select(-Confidence) %>% 
-as.matrix()
+Rarefication of Data and Applying tax_glom
 
-counts_formatted = counts %>% as.matrix()
-
-view(metadata)
-meta_names = read.delim('../Datasets/radiation_lab_metadata_improved.txt',row.names = 1) %>% names()
-meta_data = read.delim('../Datasets/radiation_lab_metadata_improved.txt',row.names = 1) 
-table(metadata[2,]== meta_data[1,])
-
-ps = phyloseq(sample_data(metadata),
-              otu_table(counts_formatted, taxa_are_rows = T),
-              tax_table(taxonomy_formatted),
-              tree)
-
-saveRDS(ps,'phyloseq_taxonomy.rds')
+```{r}
+ps_rare = ps %>%
+  rarefy_even_depth(sample.size = 87521, rngseed = 123)
+ps_genus = tax_glom(ps, 'Genus')
 ```
 
 
-
 ```{r}
-ps_genus = tax_glom(ps, 'Genus')
-ps_relab = transform(ps_genus, 'compositional')
-ps_filt = filter_taxa(ps_relab, function(x) mean(x) > 0.001, TRUE)
 
-phyloseq_object = microbiome::transform(ps_relab, 'compositional')
 
-ps_filt = filter_taxa(ps, function(x) mean(x) > 0.001, TRUE)
+phyloseq_object = microbiome::transform(ps, 'compositional')
 
-isa_output = multipatt(t(otu_table(phyloseq_object)),
-                       cluster = ps_filt@sam_data$Time_of_Collection_categorical,
+ps_filt = filter_taxa(phyloseq_object, function(x) mean(x) > 0.001, TRUE)
+
+isa_output = multipatt(t(otu_table(phyloseq_object)), 
+                       cluster = sample_data(Time_of_Collection_categorical)$dose_categorical,
                        control = how(nperm = 999))
 
 summary(isa_output, indvalcomp = TRUE)
 
 statistics = as.data.frame(isa_output$sign)
-
 ```
 
