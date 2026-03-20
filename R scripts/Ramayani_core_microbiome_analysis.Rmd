@@ -1,0 +1,52 @@
+---
+title: "Ramayani_core_microbiome_analysis"
+output: html_document
+date: "2026-03-20"
+---
+
+```{r}
+library(tidyverse)
+library(phyloseq)
+library(tidyverse)
+library(dplyr)
+library(microbiome)
+library(ggVennDiagram)
+
+# Load object
+ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+ps_rare = ps %>% 
+  rarefy_even_depth(sample.size = 87521, rngseed = 123)
+```
+
+
+
+
+```{r}
+
+subset_samples(ps_rare, dose_categorical %in% c("0.1_dose", "0.25_dose", "1_dose"))
+ps_transform = transform(ps_rare, 'compositional')
+ps_species = tax_glom(ps_transform, 'Species')
+
+# Core Microbiome Analyses for 10 and 30 days
+
+# Subset your phyloseq object
+ten_days_post_radiation = subset_samples(ps_species, Time_of_Collection_categorical == '10_days')
+thirty_days_post_radiation = subset_samples(ps_species, Time_of_Collection_categorical == '30_days')
+
+# Find core members
+ASVs_10_days = core_members(ten_days_post_radiation, detection=0, prevalence = 0.8)
+ASVs_30_days = core_members(thirty_days_post_radiation, detection=0, prevalence = 0.8)
+
+
+venn_diagram = ggVennDiagram(list(ASVs_10_days, ASVs_30_days),
+              set_size = 5,
+              category.names = c('10_days','30_days'),
+              label_size = 6, label_alpha = 0) + scale_fill_distiller(palette = "RdPu") +
+  scale_x_continuous(expand = expansion(mult = .5)) + 
+  labs(title = "Venn Diagram Depicting Count of Same/Different Microbiome Species
+       Present Within the Gut 10 Days and 30 Days Post Radiation Exposure")
+                                                       
+venn_diagram
+
+ggsave("../Results/RP_core_microbiome.png")

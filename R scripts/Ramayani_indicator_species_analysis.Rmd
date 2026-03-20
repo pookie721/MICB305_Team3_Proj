@@ -9,8 +9,16 @@ Loading Libraries and Dataset
 library(phyloseq)
 library(indicspecies)
 library(tidyverse)
+library(dplyr)
 
 ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+meta <- as.data.frame(sample_data(ps))
+
+meta$dose_and_time <- paste(meta$dose_categorical, meta$Time_of_Collection_categorical, sep = "_")
+
+sample_data(ps) <- sample_data(meta)
+
 ```
 
 Rarefication of Data and Applying tax_glom
@@ -18,23 +26,38 @@ Rarefication of Data and Applying tax_glom
 ```{r}
 ps_rare = ps %>%
   rarefy_even_depth(sample.size = 87521, rngseed = 123)
-ps_genus = tax_glom(ps, 'Genus')
+ps_genus = tax_glom(ps_rare, 'Genus')
+ps_relab = microbiome::transform(ps_genus, 'compositional')
+ps_filt = filter_taxa(ps_relab, function(x) mean(x) > 0.001, TRUE)
+otu_table = data.frame(otu_table(ps_filt))
 ```
 
 
 ```{r}
 
+set.seed(321)
+indval = multipatt( t(otu_table), 
+            cluster= ps_filt@sam_data$dose_and_time,
+ 		  control = how(nperm = 999) )
 
-phyloseq_object = microbiome::transform(ps, 'compositional')
+summary(indval, indvalcomp = TRUE)
 
-ps_filt = filter_taxa(phyloseq_object, function(x) mean(x) > 0.001, TRUE)
+# Extract into table
+indval_table = as.data.frame(indval$sign)
+```
 
-isa_output = multipatt(t(otu_table(phyloseq_object)), 
-                       cluster = sample_data(Time_of_Collection_categorical)$dose_categorical,
-                       control = how(nperm = 999))
+```{r}
+phyla_to_plot = indval_table %>% 
+  filter(p.value < 0.05 ) %>% 
+  rownames()
 
-summary(isa_output, indvalcomp = TRUE)
+df_of_taxa = prune_taxa(phyla_to_plot, ps_filt) %>% psmelt()
 
-statistics = as.data.frame(isa_output$sign)
+df_of_taxa %>% 
+  ggplot(aes(dose_and_time,Abundance,fill=dose_and_time)) +
+  geom_boxplot(outlier.shape = NA) +
+  geom_jitter(height=0, width=0.2) +
+  facet_wrap(~Genus, ncol = 10, scales = 'free') + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
 ```
 
