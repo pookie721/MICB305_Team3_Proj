@@ -24,21 +24,22 @@ library(patchwork)
 
 ```{r Load initial dataset for viewing}
 
-phyloseq = readRDS("phyloseq_taxonomy.rds")
+phyloseq = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/phyloseq_taxonomy.rds")
 
-ps_rare = phyloseq %>% rarefy_even_depth(sample.size = 87521, rngseed = 12)
-table(sample_sums(ps_rare))
+#ps_rare = phyloseq %>% rarefy_even_depth(sample.size = 87521, rngseed = 12)
+#table(sample_sums(ps_rare))
 
 ```
 
 ```{r Load datasets for PiCRUSt2}
 
-meta = ps_rare %>%
+meta = phyloseq %>%
 .@sam_data %>%
 data.frame()%>%
 rownames_to_column("sample_name")
 
-ko=read.delim("path_abun_unstrat.tsv", row.names=1, 
+
+ko=read.delim("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/path_abun_unstrat.tsv", row.names=1, 
 check.names=FALSE)
 
 ```
@@ -67,6 +68,7 @@ view(daa_annotated_results_df)
 ```
 
 
+
 ```{r new meta for each dose}
 
 meta0 <- meta |>
@@ -84,6 +86,8 @@ filter(dose_categorical == "0.25_dose")
 meta1 <- meta |>
 filter(dose_categorical == "1_dose")
 
+
+
 ```
 
 ##Running DAA by time point 4 times, once per dose
@@ -91,6 +95,7 @@ filter(dose_categorical == "1_dose")
 ```{r}
 
 # for dose 0 Gy
+
 daa_results_0 = pathway_daa(abundance= ko,
                              metadata=meta0,
                              group="Time_of_Collection_categorical",
@@ -109,7 +114,7 @@ daa_results_01 = pathway_daa(abundance= ko,
                              group="Time_of_Collection_categorical",
                              daa_method="LinDA",
                              select=NULL, 
-                             reference="Time_of_Collection_categorical")
+                             reference="Time_of_Collection_categorical:10_days")
 
 daa_annotated_dose_01 = pathway_annotation(pathway="MetaCyc", 
                                               daa_results_df=daa_results_01,
@@ -134,7 +139,7 @@ daa_results_1 = pathway_daa(abundance= ko,
                              group="Time_of_Collection_categorical",
                              daa_method="LinDA",
                              select=NULL, 
-                             reference="Time_of_Collection_categorical")
+                             reference="Time_of_Collection_categorical:10_days")
 
 daa_annotated_dose_1 = pathway_annotation(pathway="MetaCyc", 
                                               daa_results_df=daa_results_1,
@@ -142,19 +147,22 @@ daa_annotated_dose_1 = pathway_annotation(pathway="MetaCyc",
 
 ```
 
-```{r volcano plots}
+```{r volcano}
+
 
 #0 gy
 plot_data_0 <- daa_annotated_dose_0 %>%
-  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)|>
+  mutate(log10_p_adjust= -log10(p_adjust))
   
-volcano_0 <- ggplot(plot_data_0, aes(x=p_adjust, y=log2_fold_change, colour=significant))+ 
+  
+volcano_0 <- ggplot(plot_data_0, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant))+ 
 geom_point(size=3, alpha=0.7) + 
 theme_minimal() +
-scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = 0.05, linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = c(-1,1), linetype = "dashed", alpha=0.5)+
-labs(title = "0 Gy", x = "P values", y = "log 2 fold change") + theme(legend.position = "bottom")+
-  scale_y_continuous(limits = c(-5,5))+
-  scale_x_continuous(limits=c(-0.5,1))+
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+
   theme( plot.title = element_text(size = 16, face = "bold"),
     axis.title = element_text(size = 12),
     axis.text = element_text(size = 10),
@@ -166,15 +174,16 @@ volcano_0
 
 #0.1 Gy
 plot_data_01 <- daa_annotated_dose_01 %>%
-  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+    mutate(log10_p_adjust= -log10(p_adjust))
   
-volcano_01 <- ggplot(plot_data_01, aes(x=p_adjust, y=log2_fold_change, colour=significant)) + 
+volcano_01 <- ggplot(plot_data_01, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + 
 geom_point(size=3, alpha=0.7) + 
 theme_minimal() +
-scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = 0.05, linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = c(-1,1), linetype = "dashed", alpha=0.5)+
-labs(title = "0.1 Gy", x = "P values", y = "log 2 fold change") + theme(legend.position = "bottom")+
-  scale_y_continuous(limits = c(-5,5))+
-  scale_x_continuous(limits=c(-0.5,1))+theme(
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0.1 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+theme(
     plot.title = element_text(size = 16, face = "bold"),
     axis.title = element_text(size = 12),
     axis.text = element_text(size = 10),
@@ -186,13 +195,14 @@ volcano_01
 #0.25 Gy
 
 plot_data_025 <- daa_annotated_dose_025 %>%
-  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+  mutate(log10_p_adjust= -log10(p_adjust))
   
-volcano_025 <- ggplot(plot_data_025, aes(x=p_adjust, y=log2_fold_change, colour=significant)) + 
+volcano_025 <- ggplot(plot_data_025, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + 
 geom_point(size=3, alpha=0.7) + 
 theme_minimal() +
-scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = 0.05, linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = c(-1,1), linetype = "dashed", alpha=0.5)+
-labs(title = "0.25 Gy", x = "P values", y = "log 2 fold change") + theme(legend.position = "bottom")+
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0.25 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
   scale_y_continuous(limits = c(-5,5))+
   scale_x_continuous(limits=c(-0.5,1))+theme(
     plot.title = element_text(size = 16, face = "bold"),
@@ -206,15 +216,15 @@ volcano_025
 
 #1Gy
 plot_data_1 <- daa_annotated_dose_1 %>%
-  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)
-  
-volcano_1 <- ggplot(plot_data_1, aes(x=p_adjust, y=log2_fold_change, colour=significant)) + 
-geom_point(size=3, alpha=0.7) + 
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+  mutate(log10_p_adjust= -log10(p_adjust))
+
+volcano_1 <- ggplot(plot_data_1, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + geom_point(size=3, alpha=0.7) + 
 theme_minimal() +
-scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = 0.05, linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = c(-1,1), linetype = "dashed", alpha=0.5)+
-labs(title = "1Gy", x = "P values", y = "log 2 fold change") + theme(legend.position = "bottom")+
-  scale_y_continuous(limits = c(-5,5))+
-  scale_x_continuous(limits=c(-0.5,1))+theme(
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "1Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+theme(
     plot.title = element_text(size = 16, face = "bold"),
     axis.title = element_text(size = 12),
     axis.text = element_text(size = 10),
@@ -224,11 +234,11 @@ labs(title = "1Gy", x = "P values", y = "log 2 fold change") + theme(legend.posi
 
 volcano_1
 
-all_volcano <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
-all_volcano
+all_volcano_unrare <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
+all_volcano_unrare
 
-ggsave("~/Desktop/group_project/All_dose_volcano.png", 
-	plot=all_volcano, width=20, height=20, limitsize = FALSE) 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano.png", 
+	plot=all_volcano_unrare, width=20, height=20, limitsize = FALSE) 
 
 ```
 
@@ -246,15 +256,22 @@ daa_annotated_dose_01 |>
   filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
 nrow()
 
+top_01=daa_annotated_dose_01 |>
+  filter(p_adjust<0.05, abs(log2_fold_change)>=1) |>
+  arrange(p_adjust)
+ 
+ko_significant_01 <- ko[rownames(ko) %in% top_01$feature,
+                     colnames(ko) %in% meta01$sample_name]
 
-# dose 0.25Gy has no significant ouput 
+# dose 0.25Gy has  significant ouput 
 
 daa_annotated_dose_025 |>
   filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
 nrow()
 
 
-# dose 1 Gy has significant output!
+
+ # dose 1 Gy has significant output!
 
 daa_annotated_dose_1 |>
   filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
@@ -264,13 +281,27 @@ top_1=daa_annotated_dose_1 |>
   filter(p_adjust<0.05, abs(log2_fold_change)>=1) |>
   arrange(p_adjust)
  
-ko_significant <- ko[rownames(ko) %in% top_1$feature,
+ko_significant_1 <- ko[rownames(ko) %in% top_1$feature,
                      colnames(ko) %in% meta1$sample_name]
 
 source("~/Desktop/group_project/ggpicrust2_errorbar_function_fixed.R")
  
 
-peb1=pathway_errorbar_fixed(abundance=ko_significant,
+
+peb01=pathway_errorbar_fixed(abundance=ko_significant_01,
+                  daa_results_df=top_01,
+                  Group=meta1$Time_of_Collection_categorical,
+                  wrap_label=T, wraplength=10,
+                  fc_cutoff=F, order_by_log=F,
+                  p_values_threshold=0.05,
+                  order= "group",
+                  ko_to_kegg=FALSE,
+                  p_value_bar=TRUE,
+                  x_lab="description")
+
+
+
+peb1=pathway_errorbar_fixed(abundance=ko_significant_1,
                   daa_results_df=top_1,
                   Group=meta1$Time_of_Collection_categorical,
                   wrap_label=T, wraplength=10,
@@ -280,13 +311,10 @@ peb1=pathway_errorbar_fixed(abundance=ko_significant,
                   ko_to_kegg=FALSE,
                   p_value_bar=TRUE,
                   x_lab="description")
-                  
 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NTpeb01Gy.png", plot=peb01, width=35, height=15, limitsize=FALSE)
  
-ggsave("peb1.png", plot=peb1, width=35, height=15, limitsize=FALSE)
-
-#All this data aligns with the expected data obtained from the volcano plot
-#where only 1Gy has significant outputs 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NTpeb1Gy.png", plot=peb1, width=35, height=15, limitsize=FALSE)
 
 ```
 
