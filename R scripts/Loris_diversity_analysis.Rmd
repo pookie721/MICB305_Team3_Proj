@@ -59,8 +59,7 @@ plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorica
   scale_fill_manual(values = c('10_days'='pink', '30_days'='lavender')) +
   geom_jitter(height=0,width=0.1) +
   theme_classic(base_size=13) +
-  facet_grid(dose_categorical~variable, scales = 'free_y') +
-  facet_wrap(dose_categorical~variable, scales = 'free_y') +
+  facet_grid(variable~dose_categorical, rows = vars("variable"),cols = vars("dose_categorical"), scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
   labs(fill='Time of Collection post-radiation dose', title = "Alpha-diversity for 4 radiation doses") +
@@ -145,12 +144,39 @@ mds_data = mds$points %>% as.data.frame %>%
   merge(sample_data(ps_rare), by='row.names', sort=F)
 head(mds_data)
 
+# Alternative method with a function:
+mds_by_dose <- function(dose_level) {
+  # Subsetting samples (like in diferential abundance analysis)
+  samples_keep <- sample_names(ps_rare)[
+    sample_data(ps_rare)$dose_categorical == dose_level
+  ]
+  ps_sub <- prune_samples(samples_keep, ps_rare)
+  # making the distance matrix for each subset:
+  dist_sub <- phyloseq::distance(ps_sub, method = "unifrac")
+  # MDS scaling:
+  mds <- metaMDS(dist_sub)
+  # Extracting and cmbining metadata so facetgrid() can be used:
+  mds_df <- mds$points %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("SampleID") %>%
+    left_join(as.data.frame(sample_data(ps_sub)) %>%
+                tibble::rownames_to_column("SampleID"),
+              by = "SampleID") %>%
+    mutate(dose = dose_level)
+
+  return(mds_df)
+}
+
+dose_levels = unique(sample_data(ps_rare)$dose_categorical)
+
+mds_data_complete = lapply(dose_levels, mds_by_dose) %>%
+  bind_rows()
+
 # Plotting the data:
-plot_beta = mds_data %>%
+plot_beta = mds_data_complete %>%
   ggplot(aes(MDS1,MDS2,fill = Time_of_Collection_categorical)) +
   geom_point(shape = 21, color = "purple4", size = 3) +
-  stat_ellipse() +
-  facet_grid(~dose_categorical, scales = 'free_y') +
+  stat_ellipse(type = "norm") +
   facet_wrap(~dose_categorical, scales = 'free_y') +
   theme_classic(base_size=15) +
   scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
@@ -160,26 +186,9 @@ plot_beta = mds_data %>%
 plot_beta
 
 ggsave("../Results/LT_Beta_diversity_nopval.png", plot = plot_beta, width = 7, height = 7.3, units = "in")
+
 # Calculating the stats:
 metadata = sample_data(ps_rare) %>% data.frame()
-
-# single variable:
-stats_univar = adonis2(ps_bray ~ Time_of_Collection_categorical, data = metadata)
-
-# Two variables to account for the different doses:
-stats_multivar = adonis2(ps_bray ~ Time_of_Collection_categorical + dose_categorical, data = metadata, by = 'margin') 
-
-# Combine into a table
-stats = bind_rows('Univariate' = stats_univar %>% as.data.frame() %>% 
-                    rownames_to_column('Variable'),
-                  'Multivariate' = stats_multivar %>% as.data.frame() %>% 
-                    rownames_to_column('Variable'),
-                  .id = 'Model')
-
-# Add some formatting:
-stats = stats %>% rename(Pval = `Pr(>F)`) %>%
-  filter(!is.na(Pval)) # Remove the irrelevant lines
-stats
 
 # alternative:
 run_adonis <- function(dose_rad) {
