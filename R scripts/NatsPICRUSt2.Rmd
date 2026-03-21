@@ -312,9 +312,9 @@ peb1=pathway_errorbar_fixed(abundance=ko_significant_1,
                   p_value_bar=TRUE,
                   x_lab="description")
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NTpeb01Gy.png", plot=peb01, width=35, height=15, limitsize=FALSE)
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NTpeb01Gy.png", plot=peb01, width=35, height=15, limitsize=FALSE)
  
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NTpeb1Gy.png", plot=peb1, width=35, height=15, limitsize=FALSE)
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NTpeb1Gy.png", plot=peb1, width=35, height=15, limitsize=FALSE)
 
 ```
 
