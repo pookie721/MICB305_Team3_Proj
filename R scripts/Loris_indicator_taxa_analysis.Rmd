@@ -66,20 +66,29 @@ all_DA_results_G = all_DA_results_G %>%
   left_join(genus_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-G_DA_results_best = all_DA_results_G %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1.5) %>% filter(dose != "0_dose")
-G_DA_results_best$Genus <- str_wrap(G_DA_results_best$Genus, width = 16)
+G_DA_results_best = all_DA_results_G %>% 
+  filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1.5) %>% 
+  filter(dose != "0_dose") %>% 
+  mutate(Genus = str_sub(Genus, 5, -1)) %>% 
+  mutate(Class = str_sub(Class, 5, -1)) %>% 
+  mutate(Order = str_sub(Order, 5, -1)) %>% 
+  mutate(Family = str_sub(Family, 5, -1)) %>%
+  mutate(Genus = fct_recode(Genus, "Siraeum group" = "[Eubacterium]_siraeum_group", "Coprostanoligenes group" = "[Eubacterium]_coprostanoligenes_group")) %>%
+  mutate(dose = fct_recode(dose, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose"))
 
-G_DA_results_best %>%
+DAA_plot_G <- G_DA_results_best %>%
   ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
   theme_classic(base_size = 13) +
   facet_grid(~dose, scales = 'free_y') +
   facet_wrap(~dose, scales = 'free_y') +
+  scale_fill_manual(values = c('Clostridia'='turquoise1', 'Actinobacteria'='maroon1', "Verrucomicrobiae" = "mediumpurple1", "Bacilli" = "royalblue2")) +
   ylab('Log-2 fold change') + xlab(NULL) +
-  labs(title = "Differential abundance for 4 radiation doses") +
+  labs(title = "Differential abundance for 3 radiation doses") +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 
+ggsave("../Results/LT_DAA_Genus.png", plot = DAA_plot_G, width = 8, height = 4.4, units = "in")
 ```
 
 #### Differential abundance with ANCOM-BC2 (class-level):

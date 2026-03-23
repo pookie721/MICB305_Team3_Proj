@@ -171,7 +171,9 @@ mds_by_dose <- function(dose_level) {
 dose_levels = unique(sample_data(ps_rare)$dose_categorical)
 
 mds_data_complete = lapply(dose_levels, mds_by_dose) %>%
-  bind_rows()
+  bind_rows() %>%
+  mutate(dose_categorical = fct_recode(dose_categorical, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose", "0 Gy" = "0_dose")) %>%
+  mutate(Time_of_Collection_categorical = fct_recode(Time_of_Collection_categorical, "10 days"= "10_days", "30 days" = "30_days"))
 
 # Plotting the data:
 plot_beta = mds_data_complete %>%
@@ -180,9 +182,9 @@ plot_beta = mds_data_complete %>%
   stat_ellipse(type = "norm") +
   facet_wrap(~dose_categorical, scales = 'free_y') +
   theme_classic(base_size=15) +
-  scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
+  scale_fill_manual(values = c('10 days'='plum1', '30 days'='paleturquoise1')) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
-  labs(title = "Beta-diversity for 4 radiation doses") +
+  labs(title = "Beta-diversity for 4 radiation doses", fill = "Time of collection-post treatment") +
   theme(legend.position = "bottom")
 plot_beta
 
@@ -221,20 +223,6 @@ pairwise_stats = pairwise_stats %>%
   mutate(Pval = round(Pval, 4))
 pairwise_stats
 
-# Based on the results from the Alpha diversity analysis, I will compare the 0 Gy dose and 0.1 Gy dose, first seeing what happens without controlling for the time of collection and then maybe controlling for it.
-to_compare = c('0_dose','0.1_dose')
-
-# List samples that belong to those body sites
-samples_to_keep = metadata %>% filter(dose_categorical %in% to_compare) %>% rownames()
-
-# Subset the distance matrix to only include those samples
-ps_bray_sub = as.matrix(ps_bray)[samples_to_keep,samples_to_keep] %>% as.dist()
-
-# Run a PERMANOVA on just those two body sites
-stats_univar = adonis2(ps_bray_sub ~ dose_categorical,
-                       data = metadata %>% filter(dose_categorical %in% to_compare))
-
-stats_univar
 ```
 
 #### Faith's Phylogenetic Diversity analysis:
