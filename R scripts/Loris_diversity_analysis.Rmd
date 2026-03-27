@@ -60,7 +60,6 @@ plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorica
   geom_jitter(height=0,width=0.1) +
   theme_classic(base_size=13) +
   facet_grid(dose_categorical~variable, scales = 'free_y') +
-  facet_wrap(dose_categorical~variable, scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
   labs(fill='Time of Collection post-radiation dose', title = "Alpha-diversity for 4 radiation doses") +
