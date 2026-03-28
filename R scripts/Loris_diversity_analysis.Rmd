@@ -41,7 +41,7 @@ table(sample_sums(ps_rare))
 
 Here is my code for the supplementary Alpha diversity analysis. Only one of the 3 measures will be included in the final manuscript, however this plot will be a supplementary figure. Anything notable about the results will be mentioned directly in the code chunks as blocked out text.
 
-```{r Alpha_diversity, fig.height=8, fig.width=8}
+```{r Alpha_diversity, fig.height=8, fig.width=7}
 ### Plotting alpha diversity:
 set.seed(365)
 plot_of_richness = plot_richness(ps_rare, x = 'Time_of_Collection_categorical', 
@@ -50,7 +50,7 @@ plot_of_richness = plot_richness(ps_rare, x = 'Time_of_Collection_categorical',
 plot_of_richness
 
 # Pulling the data from the rough plot:
-plot_richness_data = plot_of_richness$data
+plot_richness_data = plot_of_richness$data %>% mutate(dose_categorical = fct_recode(dose_categorical, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose", "0 Gy" = "0_dose"))
 # str(plot_richness_data) 
 
 # Ploting alpha diversity again but nicer:
@@ -59,9 +59,10 @@ plot_formatted = plot_richness_data %>% ggplot(aes(Time_of_Collection_categorica
   scale_fill_manual(values = c('10_days'='pink', '30_days'='lavender')) +
   geom_jitter(height=0,width=0.1) +
   theme_classic(base_size=13) +
-  facet_grid(dose_categorical~variable, scales = 'free_y') +
+  facet_grid(variable~dose_categorical, scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
+  scale_x_discrete(labels = c("10 days", "30 days")) +
   labs(fill='Time of Collection post-radiation dose', title = "Alpha-diversity for 4 radiation doses") +
   theme(legend.position = "bottom")
 plot_formatted
@@ -71,7 +72,7 @@ comparisons = list( c('10_days','30_days'))
 
 suplementary_plot <- plot_formatted +
   stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
-  scale_y_continuous(expand = expansion(mult = c(0, .1)))
+  scale_y_continuous(expand = expansion(mult = c(0.1, 0.15)))
 suplementary_plot
 
 # Only with the 0.1 Gy dose is there a significant difference in alpha diversity for all measurements, showing that the diversity actually increased after 30 days compared to 10 days. (I may go back and do a diversity plot for faith PD and chao.1 as well.)
@@ -80,7 +81,7 @@ suplementary_plot
 # 0.25 Gy dose: all three tests showed no significant differences.
 # 1.0 Gy dose: all three tests showed no significant differences.
 
-ggsave("../Results/LT_Suplementary_alpha_diversity.png", plot = suplementary_plot, width = 7, height = 7.5, units = "in")
+ggsave("../Results/LT_Suplementary_alpha_diversity.png", plot = suplementary_plot, width = 7, height = 8, units = "in")
 ```
 
 #### Alpha diversity plot for publication
@@ -96,29 +97,32 @@ Shannon_richness = plot_richness(ps_rare, x = 'Time_of_Collection_categorical',
 Shannon_richness
 
 # Pulling the data from the rough plot:
-Shannon_data = Shannon_richness$data
+Shannon_data = Shannon_richness$data %>% mutate(dose_categorical = fct_recode(dose_categorical, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose", "0 Gy" = "0_dose"))
 # str(plot_richness_data) 
 
 # Plotting alpha diversity again but nicer:
 Shannon_formatted = Shannon_data %>% ggplot(aes(Time_of_Collection_categorical,value,fill = Time_of_Collection_categorical)) +
-  geom_boxplot(outlier.shape = NA) +
+  geom_boxplot(outlier.shape = NA, show.legend = FALSE) +
   scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
-  geom_jitter(height=0,width=0.1) +
+  geom_jitter(height=0,width=0.1, show.legend = FALSE) +
   theme_classic(base_size=13) +
   facet_grid(~dose_categorical, scales = 'free_y') +
   facet_wrap(~dose_categorical, scales = 'free_y') +
   ylab('Alpha Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
   labs(fill='Time of Collection post-radiation dose', title = "Shannon alpha-diversity for 4 radiation doses") +
-  theme(legend.position = "bottom")
+  theme(legend.position = "bottom") +
+  scale_y_continuous(limits = c(2, 4.25)) +
+  scale_x_discrete(labels = c("10 days", "30 days")) +
+  labs(fill='Time of Collection post-radiation dose', title = "Shannon alpha-diversity for 4 radiation doses")
 Shannon_formatted
 
 # Finding the difference between groups of interest:
 comparisons = list( c('10_days','30_days'))
 
 shannon_for_pub <- Shannon_formatted +
-  stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
-  scale_y_continuous(expand = expansion(mult = c(0, .1)))
+  stat_compare_means(comparisons = comparisons, method='t.test', size=4)
+  # scale_y_continuous(expand = expansion(mult = c(0, .1)))
 shannon_for_pub
 
 # Only the 0.1 Gy dose shwoed significant differneces in alpha diversity between 10 and 30 days post treatment.
@@ -144,43 +148,53 @@ mds_data = mds$points %>% as.data.frame %>%
   merge(sample_data(ps_rare), by='row.names', sort=F)
 head(mds_data)
 
+# Alternative method with a function:
+mds_by_dose <- function(dose_level) {
+  # Subsetting samples (like in diferential abundance analysis)
+  samples_keep <- sample_names(ps_rare)[
+    sample_data(ps_rare)$dose_categorical == dose_level
+  ]
+  ps_sub <- prune_samples(samples_keep, ps_rare)
+  # making the distance matrix for each subset:
+  dist_sub <- phyloseq::distance(ps_sub, method = "wunifrac")
+  # MDS scaling:
+  mds <- metaMDS(dist_sub)
+  # Extracting and cmbining metadata so facetgrid() can be used:
+  mds_df <- mds$points %>%
+    as.data.frame() %>%
+    tibble::rownames_to_column("SampleID") %>%
+    left_join(as.data.frame(sample_data(ps_sub)) %>%
+                tibble::rownames_to_column("SampleID"),
+              by = "SampleID") %>%
+    mutate(dose = dose_level)
+
+  return(mds_df)
+}
+
+dose_levels = unique(sample_data(ps_rare)$dose_categorical)
+
+mds_data_complete = lapply(dose_levels, mds_by_dose) %>%
+  bind_rows() %>%
+  mutate(dose_categorical = fct_recode(dose_categorical, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose", "0 Gy" = "0_dose")) %>%
+  mutate(Time_of_Collection_categorical = fct_recode(Time_of_Collection_categorical, "10 days"= "10_days", "30 days" = "30_days"))
+
 # Plotting the data:
-plot_beta = mds_data %>%
+plot_beta = mds_data_complete %>%
   ggplot(aes(MDS1,MDS2,fill = Time_of_Collection_categorical)) +
   geom_point(shape = 21, color = "purple4", size = 3) +
-  stat_ellipse() +
+  stat_ellipse(type = "norm") +
   facet_grid(~dose_categorical, scales = 'free_y') +
   facet_wrap(~dose_categorical, scales = 'free_y') +
   theme_classic(base_size=15) +
-  scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
+  scale_fill_manual(values = c('10 days'='plum1', '30 days'='paleturquoise1')) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
-  labs(title = "Beta-diversity for 4 radiation doses") +
+  labs(title = "Beta-diversity for 4 radiation doses", fill = "Time of collection post treatment") +
   theme(legend.position = "bottom")
 plot_beta
 
 ggsave("../Results/LT_Beta_diversity_nopval.png", plot = plot_beta, width = 7, height = 7.3, units = "in")
-# Calculating the stats:
-metadata = sample_data(ps_rare) %>% data.frame()
 
-# single variable:
-stats_univar = adonis2(ps_bray ~ Time_of_Collection_categorical, data = metadata)
-
-# Two variables to account for the different doses:
-stats_multivar = adonis2(ps_bray ~ Time_of_Collection_categorical + dose_categorical, data = metadata, by = 'margin') 
-
-# Combine into a table
-stats = bind_rows('Univariate' = stats_univar %>% as.data.frame() %>% 
-                    rownames_to_column('Variable'),
-                  'Multivariate' = stats_multivar %>% as.data.frame() %>% 
-                    rownames_to_column('Variable'),
-                  .id = 'Model')
-
-# Add some formatting:
-stats = stats %>% rename(Pval = `Pr(>F)`) %>%
-  filter(!is.na(Pval)) # Remove the irrelevant lines
-stats
-
-# alternative:
+# Calculating the stats with a function:
 run_adonis <- function(dose_rad) {
 # Subset metadata for the desired radiation dose
   meta_sub <- metadata %>%
@@ -188,6 +202,27 @@ run_adonis <- function(dose_rad) {
            Time_of_Collection_categorical %in% c("10_days", "30_days"))
 # Subseting the distance matrix to the same samples
   dist_sub <- as.dist(as.matrix(ps_bray)[rownames(meta_sub), rownames(meta_sub)])
+# Run PERMANOVA (adonis2)
+  res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
+                 data = meta_sub)
+# Convert to a dataframe and add the dose
+  res_df <- as.data.frame(res) %>%
+    rownames_to_column("Variable") %>%
+    mutate(dose = dose_rad)
+
+  return(res_df)
+}
+
+run_adonis <- function(dose_rad) {
+# Subset metadata for the desired radiation dose
+  meta_sub <- metadata %>%
+    filter(dose_categorical == dose_rad,
+           Time_of_Collection_categorical %in% c("10_days", "30_days"))
+# Subseting the distance matrix to the same samples
+  samples_keep <- rownames(meta_sub)
+  dist_sub <- as.dist(
+    as.matrix(ps_bray)[samples_keep, samples_keep]
+  )
 # Run PERMANOVA (adonis2)
   res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
                  data = meta_sub)
@@ -209,21 +244,6 @@ pairwise_stats = pairwise_stats %>%
   filter(!is.na(Pval)) %>%
   mutate(Pval = round(Pval, 4))
 pairwise_stats
-
-# Based on the results from the Alpha diversity analysis, I will compare the 0 Gy dose and 0.1 Gy dose, first seeing what happens without controlling for the time of collection and then maybe controlling for it.
-to_compare = c('0_dose','0.1_dose')
-
-# List samples that belong to those body sites
-samples_to_keep = metadata %>% filter(dose_categorical %in% to_compare) %>% rownames()
-
-# Subset the distance matrix to only include those samples
-ps_bray_sub = as.matrix(ps_bray)[samples_to_keep,samples_to_keep] %>% as.dist()
-
-# Run a PERMANOVA on just those two body sites
-stats_univar = adonis2(ps_bray_sub ~ dose_categorical,
-                       data = metadata %>% filter(dose_categorical %in% to_compare))
-
-stats_univar
 ```
 
 #### Faith's Phylogenetic Diversity analysis:
@@ -255,15 +275,17 @@ faith_metrics = pd(otu_pa, tree, include.root = TRUE) %>% select(-SR)
 
 ### plotting the data:
 metadata = sample_data(ps_rare) %>% data.frame()
-combined_data <- cbind(metadata, faith_metrics)
+combined_data <- cbind(metadata, faith_metrics) %>% mutate(dose_categorical = fct_recode(dose_categorical, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose", "0 Gy" = "0_dose"))
 
 Faith_plot = ggplot(combined_data, aes(x = Time_of_Collection_categorical, y = PD, fill = Time_of_Collection_categorical)) +
-  geom_boxplot(outlier.shape = NA) +
+  geom_boxplot(outlier.shape = NA, show.legend = FALSE) +
   theme_classic(base_size = 13) +
   scale_fill_manual(values = c('10_days'='plum1', '30_days'='paleturquoise1')) +
-  geom_jitter(height=0,width=0.1) +
+  geom_jitter(height=0,width=0.1, show.legend = FALSE) +
   facet_grid(~dose_categorical, scales = 'free_y') +
   facet_wrap(~dose_categorical, scales = 'free_y') +
+  scale_y_continuous(limits = c(10.5, 14.9)) +
+  scale_x_discrete(labels = c("10 days", "30 days")) +
   ylab('Phylogenetic Diversity') + xlab(NULL) +
   theme(axis.text.x = element_text(angle = 45,vjust=1,hjust=1)) +
   labs(fill='Time of Collection post-radiation dose', title = "Faith's Phylogenetic Diversity for 4 radiation doses") +
@@ -274,7 +296,9 @@ Faith_plot
 comparisons = list( c('10_days','30_days'))
 
 Faith_with_pval <- Faith_plot +
-  stat_compare_means(comparisons = comparisons, method='t.test', size=4) +
-  scale_y_continuous(expand = expansion(mult = c(0, .2)))
+  stat_compare_means(comparisons = comparisons, method='t.test', size=4)
+  # scale_y_continuous(expand = expansion(mult = c(0, .2)))
 Faith_with_pval
+
+ggsave("../Results/LT_Faith_PD.png", plot = Faith_with_pval, width = 7, height = 7.3, units = "in")
 ```
