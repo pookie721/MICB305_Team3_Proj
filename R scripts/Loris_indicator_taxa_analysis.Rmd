@@ -39,29 +39,8 @@ statistical_table = ancombc2_out$res
 taxa_to_plot = statistical_table %>% 
   filter(diff_robust_Time_of_Collection_categorical30_days==T) 
 
-# Alternatively, since the previous method got lots of falses (only 1 paired diff robust collumn returned true):
-ancombc2_by_dose <- function(dose_for_ancom) {
-  # Subsetting the phyloseq object (like in beta diversity)
-  ps_sub <- subset_samples(ps_genus_glom,
-                           dose_categorical == get(dose_for_ancom))
-  # Droping taxa with zero counts after the subsetting
-  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
-  # Run ANCOM-BC2 test
-  out <- ancombc2(
-    data = ps_sub,
-    fix_formula = "Time_of_Collection_categorical",
-    p_adj_method = "BH",
-    prv_cut = 0.1
-  )
-  # Extracting the results
-  res <- out$res %>%
-    mutate(dose = dose_for_ancom)
-
-  return(res)
-}
-
 # function 2.0 (runs but takes a terribly long time):
-ancombc2_by_dose <- function(dose_for_ancom) {
+ancombc2_by_dose_G <- function(dose_for_ancom) {
 
   samples_keep <- sample_names(ps_genus_glom)[
     sample_data(ps_genus_glom)$dose_categorical == dose_for_ancom
@@ -86,7 +65,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_genus_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_G = lapply(dose_levels, ancombc2_by_dose_G) %>%
   bind_rows()
 
 # Plot the log 2 fold changes:
@@ -94,23 +73,34 @@ genus_table = tax_table(ps_genus_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_G = all_DA_results_G %>%
   left_join(genus_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
 
-all_DA_results_best %>%
-  ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Family)) +
+G_DA_results_best = all_DA_results_G %>% 
+  filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1.5) %>% 
+  filter(dose != "0_dose") %>% 
+  mutate(Genus = str_sub(Genus, 5, -1)) %>% 
+  mutate(Class = str_sub(Class, 5, -1)) %>% 
+  mutate(Order = str_sub(Order, 5, -1)) %>% 
+  mutate(Family = str_sub(Family, 5, -1)) %>%
+  mutate(Genus = fct_recode(Genus, "Siraeum group" = "[Eubacterium]_siraeum_group", "Coprostanoligenes group" = "[Eubacterium]_coprostanoligenes_group")) %>%
+  mutate(dose = fct_recode(dose, "0.1 Gy" = "0.1_dose", "0.25 Gy" = "0.25_dose", "1 Gy" = "1_dose"))
+
+DAA_plot_G <- G_DA_results_best %>%
+  ggplot(aes(Genus,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
   theme_classic(base_size = 13) +
   facet_grid(~dose, scales = 'free_y') +
   facet_wrap(~dose, scales = 'free_y') +
+  scale_fill_manual(values = c('Clostridia'='turquoise1', 'Actinobacteria'='maroon1', "Verrucomicrobiae" = "mediumpurple1", "Bacilli" = "royalblue2")) +
   ylab('Log-2 fold change') + xlab(NULL) +
-  labs(title = "Differential abundance for 4 radiation doses") +
+  labs(title = "Differential abundance for 3 radiation doses") +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 
+ggsave("../Results/LT_DAA_Genus.png", plot = DAA_plot_G, width = 8, height = 4.4, units = "in")
 ```
 
 #### Differential abundance with ANCOM-BC2 (class-level):
