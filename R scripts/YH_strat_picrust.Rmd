@@ -3,12 +3,19 @@
 ### Load libraries
 
 ```{r}
+
+#install.packages("BiocManager")
+#BiocManager::install("ComplexHeatmap")
+#install.packages("pheatmap")
+
 library(dplyr)
 library(tidyverse)
 library(phyloseq)
 library(ggpicrust2)
 library(ggplot2)
 library(ggrepel)
+library(ComplexHeatmap)
+library(circlize)
 ```
 
 ### Functional abundance (MM - PICRUSt)
@@ -16,11 +23,11 @@ library(ggrepel)
 ```{r}
 # Load datasets
 
-meta = readRDS('./Datasets/phyloseq_taxonomy.rds') %>% 
+meta = readRDS('../Datasets/phyloseq_taxonomy.rds') %>% 
   .@sam_data %>% data.frame() %>% 
   rownames_to_column('sample_names')
 
-path = read.delim('./Datasets/path_abun_unstrat.tsv.gz', 
+path = read.delim('../Datasets/path_abun_unstrat.tsv', 
                   row.names = 1, check.names = FALSE)
 
 # Keep only samples present in both metadata and pathway table
@@ -84,34 +91,38 @@ significant #37 pathways found
 ```{r}
 
 # Load datasets
-path_contrib = read.delim('./Datasets/path_abun_contrib.tsv.gz', check.names = FALSE)
-taxonomy = read.delim('./Datasets/taxonomy.tsv', check.names = FALSE)
-marker = read.delim('./Datasets/bac_marker_predicted_and_nsti.tsv.gz', check.names = FALSE)
+path_contrib = read.delim('../Datasets/path_abun_contrib.tsv.gz', check.names = FALSE)
+taxonomy = read.delim('../Datasets/taxonomy.tsv', check.names = FALSE)
+#marker = read.delim('./Datasets/bac_marker_predicted_and_nsti.tsv.gz', check.names = FALSE)
+```
 
+#### w/ ggplot
+
+```{r}
 # Wrangling for visualization :')
 
-extract_phylum = function(tax_string) {
+extract_family = function(tax_string) {
   parts = strsplit(tax_string, "; ")[[1]]
-  phylum_part = parts[grepl("^p__", parts)]
-  if(length(phylum_part) > 0) {
-    return(gsub("^p__", "", phylum_part[1]))
+  family_part = parts[grepl("^f__", parts)]
+  if(length(family_part) > 0) {
+    return(gsub("^f__", "", family_part[1]))
   } else {
     return("Unclassified")
   }
 }
 
 taxonomy = taxonomy %>%
-  mutate(phylum = sapply(Taxon, extract_phylum))
+  mutate(family = sapply(Taxon, extract_family))
 
-taxon_to_phylum = taxonomy %>%
-  select(`Feature ID`, phylum) %>%
+taxon_to_family = taxonomy %>%
+  select(`Feature ID`, family) %>%
   distinct()
 
-path_contrib_with_phylum = path_contrib %>%
-  left_join(taxon_to_phylum, by = c('taxon' = 'Feature ID')) %>%
-  mutate(taxon_name = ifelse(is.na(phylum), taxon, phylum))
+path_contrib_with_family = path_contrib %>%
+  left_join(taxon_to_family, by = c('taxon' = 'Feature ID')) %>%
+  mutate(taxon_name = ifelse(is.na(family), taxon, family))
 
-contrib_joined = path_contrib_with_phylum %>%
+contrib_joined = path_contrib_with_family %>%
   left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
     by = c('sample' = 'sample_names'))
 
@@ -148,9 +159,9 @@ ggplot(contrib_summary, aes(x = taxon_short, y = `function`, fill = mean_contrib
   geom_tile() +
   geom_tile(fill = NA, color = 'white',        # separate layer just for borders
             linewidth = 0.25) +
-  scale_fill_gradientn(
-    colors = c('#8b0000', '#cc2b2b', '#e6734f', '#2c7fb8', '#1f548c', '#002a5c'),
-    name   = 'Mean Norm.\nContribution') +
+  scale_fill_gradientn(colors = c('white', '#ffffcc', '#fd8d3c', '#800026'),
+                       values = scales::rescale(c(0, 0.01, 0.5, 1)),
+                       name = 'Mean Norm.\nContribution') +
   facet_grid(dose_label ~ time_label, scales = 'free_y', space  = 'free_y') + 
   theme_bw(base_size = 10) +
   theme(
@@ -170,5 +181,136 @@ ggplot(contrib_summary, aes(x = taxon_short, y = `function`, fill = mean_contrib
     title    = 'Normalized Taxon Contributions',
   )
 
-ggsave('./Results/aim4_strat_heatmap.pdf', width = 6, height = 9, dpi = 300)
+ggsave('../Results/aim4_strat_heatmap(family).png', width = 13, height = 9, dpi = 300)
+
+# Difference heatmap (30 days - 10 days)
+contrib_diff <- contrib_summary %>%
+  select(taxon_short, `function`, dose_label, time_label, mean_contrib) %>%
+  pivot_wider(names_from = time_label,
+              values_from = mean_contrib,
+              values_fill = 0) %>%        # NOTE: this replaces NA timepoints with 0! Since some taxon don't appear at all certain timepoints...i.e. so we can consider them to have 1 or -1 difference.
+  mutate(diff = `30 Days Post-IR` - `10 Days Post-IR`)
+
+lim <- max(abs(range(contrib_diff$diff, na.rm = TRUE)))
+
+ggplot(contrib_diff, aes(x = taxon_short, y = `function`, fill = diff)) +
+  geom_tile() +
+  geom_tile(fill = NA, color = 'white', linewidth = 0.25) +
+  geom_text(aes(label = round(diff, 1)), size = 2.5, color = 'black') +
+  scale_fill_gradientn(
+    colors = c('#2166ac', '#4575b4', '#91bfdb', '#d1e5f0', '#d3d3d3', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'),
+    values = scales::rescale(c(-lim, -lim*0.5, -lim*0.2, -0.05, 0, 0.05, lim*0.2, lim*0.5, lim)),
+    limits = c(-lim, lim),
+    name = 'Difference\n(30d - 10d)') +
+  facet_grid(dose_label ~ ., scales = 'free_y', space = 'free_y') +
+  theme_bw(base_size = 10) +
+  theme(
+    axis.text.x       = element_text(angle = 40, hjust = 1, size = 10, face = 'italic'),
+    axis.text.y       = element_text(size = 9),
+    strip.background  = element_rect(fill = 'grey85', color = NA),
+    strip.text        = element_text(face = 'bold', size = 9),
+    panel.spacing     = unit(0.5, 'lines'),
+    panel.grid.major  = element_blank(),
+    panel.grid.minor  = element_blank(),
+    panel.border      = element_rect(color = 'grey70', fill = NA, linewidth = 0.5),
+    legend.position   = 'right',
+    legend.key.height = unit(1.2, 'cm')
+  ) +
+  labs(
+    x     = 'Contributing Family',
+    title = 'Change in Taxon Contributions by Dose (30 Days - 10 Days)',
+  )
+
+ggsave('../Results/YH_functional_contrib_heatmapDIFF(family).png', width = 14, height = 10, dpi = 300)
+```
+
+#### w/ ComplexHeatmap
+
+```{r}
+# Wrangling for visualization :')
+
+extract_family = function(tax_string) {
+  parts = strsplit(tax_string, "; ")[[1]]
+  family_part = parts[grepl("^f__", parts)]
+  if(length(family_part) > 0) {
+    return(gsub("^f__", "", family_part[1]))
+  } else {
+    return("Unclassified")
+  }
+}
+
+taxonomy = taxonomy %>%
+  mutate(family = sapply(Taxon, extract_family))
+
+taxon_to_family = taxonomy %>%
+  select(`Feature ID`, family) %>%
+  distinct()
+
+path_contrib_with_family = path_contrib %>%
+  left_join(taxon_to_family, by = c('taxon' = 'Feature ID')) %>%
+  mutate(taxon_name = ifelse(is.na(family), taxon, family))
+
+contrib_joined = path_contrib_with_family %>%
+  left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
+    by = c('sample' = 'sample_names'))
+
+all_pathways_by_dose = significant %>%
+  select(dose, feature) %>%
+  mutate(dose_categorical = paste0(dose, '_dose'))
+
+# Top taxa
+
+top_taxa = contrib_joined %>%
+  inner_join(all_pathways_by_dose,
+             by = c('function' = 'feature',
+                    'dose_categorical' = 'dose_categorical')) %>%
+  group_by(taxon_name) %>%
+  summarise(total = sum(norm_taxon_function_contrib), .groups = 'drop') %>%
+  pull(taxon_name)
+
+### Mean contribution per group
+contrib_summary = contrib_joined %>%
+  inner_join(all_pathways_by_dose,
+             by = c('function' = 'feature',
+                    'dose_categorical' = 'dose_categorical')) %>%
+  group_by(`function`, taxon_name, dose_categorical, Time_of_Collection_categorical) %>%
+  summarise(mean_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE), 
+            .groups = 'drop') %>%
+  mutate(taxon_short = taxon_name,
+         dose_label  = factor(dose_categorical,
+                              levels = c('0_dose', '0.1_dose', '0.25_dose', '1_dose'),
+                              labels = c('0 Gy (Sham)', '0.1 Gy', '0.25 Gy', '1 Gy')),
+         time_label  = factor(Time_of_Collection_categorical,
+                              levels = c('10_days', '30_days'),
+                              labels = c('10 Days Post-IR', '30 Days Post-IR'))) 
+
+
+
+# Generating heatmap (w/ pheatmap)
+mat <- contrib_summary %>%
+  select(taxon_short, `function`, mean_contrib) %>%
+  group_by(taxon_short, `function`) %>%
+  summarise(mean_contrib = mean(mean_contrib, na.rm = TRUE), .groups = "drop") %>%
+  pivot_wider(names_from = `function`,
+              values_from = mean_contrib,
+              values_fill = 0) %>%
+  column_to_rownames("taxon_short") %>%
+  as.matrix()
+
+col_fun <- colorRamp2(c(0, 0.5, 1), c("white", "#fdd49e", "#d7301f"))
+
+ht <- Heatmap(mat,
+              name = "Mean\nContribution",
+              col = col_fun,
+              cluster_rows = TRUE,
+              cluster_columns = TRUE,
+              row_names_gp = gpar(fontsize = 8),
+              column_names_gp = gpar(fontsize = 7),
+              column_names_rot = 45,
+              rect_gp = gpar(col = "grey", lwd = 0.5))
+
+png("../Results/YH_functional_contrib_COMPLEXheatmap.png",
+    width = 9, height = 5, units = "in", res = 300)
+draw(ht, heatmap_legend_side = "right")
+dev.off()
 ```
