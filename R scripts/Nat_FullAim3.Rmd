@@ -240,7 +240,7 @@ volcano_1
 all_volcano_unrare <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
 all_volcano_unrare
 
-ggsave("~/Desktop/group_project/NT_volcano_unrare.png", 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NT_volcano.png", 
 	plot=all_volcano_unrare, width=20, height=20, limitsize = FALSE) 
 
 
@@ -420,11 +420,11 @@ ggsave("~/Desktop/group_project/NTpeb1Gy.unrare.png", plot=peb1, width=35, heigh
 
 ```
 
-```{r histogram}
+```{r bar plots}
 
 #Do it for 0.1Gy
 
-histogram_01 <- plot_data_01 %>%
+bp_01 <- plot_data_01 %>%
   filter(status != "Not Significant") %>%
   mutate(
     sign_log10p = ifelse(status == "Depleted", -log10_p_adjust, log10_p_adjust),
@@ -432,7 +432,7 @@ histogram_01 <- plot_data_01 %>%
     arrange(sign_log10p)
 
 
-bar_plot_01 <- ggplot(histogram_01, aes(x = sign_log10p, y = description, fill = status)) +
+bar_plot_01 <- ggplot(bp_01, aes(x = sign_log10p, y = description, fill = status)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c(
     "Enriched" = "palevioletred",
@@ -456,16 +456,16 @@ bar_plot_01 <- ggplot(histogram_01, aes(x = sign_log10p, y = description, fill =
 
 bar_plot_01
 
-ggsave("~/Desktop/group_project/NT_histogram_01.png", plot=bar_plot_01, width=10, height=15, limitsize=FALSE)
+ggsave("~/Desktop/group_project/NT_barplot_01.png", plot=bar_plot_01, width=10, height=15, limitsize=FALSE)
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_histogram_01.png", 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_barplot_01.png", 
 	plot=bar_plot_01, width=10, height=10, limitsize = FALSE) 
 
 
 
 
 # For 1 Gy (has both Enriched and Depleted)
-histogram_1 <- plot_data_1 %>%
+bp_1 <- plot_data_1 %>%
   filter(status != "Not Significant", !is.na(description)) %>%
   mutate(
     sign_log10p = ifelse(status == "Depleted", -log10_p_adjust, log10_p_adjust),
@@ -474,7 +474,7 @@ histogram_1 <- plot_data_1 %>%
   
 
 
-bar_plot_1 <- ggplot(histogram_1, aes(x = sign_log10p, y = description, fill = status)) +
+bar_plot_1 <- ggplot(bp_1, aes(x = sign_log10p, y = description, fill = status)) +
   geom_bar(stat = "identity") +
   scale_fill_manual(values = c(
     "Enriched" = "palevioletred",
@@ -499,23 +499,23 @@ bar_plot_1 <- ggplot(histogram_1, aes(x = sign_log10p, y = description, fill = s
 bar_plot_1
 
 
-ggsave("~/Desktop/group_project/NT_histogram_1.png", plot=bar_plot_1, width=10, height=15, limitsize=FALSE)
+ggsave("~/Desktop/group_project/NT_barplot_1.png", plot=bar_plot_1, width=10, height=15, limitsize=FALSE)
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_histogram_1.png", 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_barplot_1.png", 
 	plot=bar_plot_1, width=10, height=10, limitsize = FALSE) 
 
 
 
-#Combined histogram plot 
+#Combined bar plot plot 
 
-histogram <- bar_plot_01 + bar_plot_1 + plot_layout(guides = "collect") +
+plot <- bar_plot_01 + bar_plot_1 + plot_layout(guides = "collect") +
   theme(legend.position = "right")
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_fullhistogram.png", 
-	plot=histogram, width=20, height=10, limitsize = FALSE) 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_fullbarplot.png", 
+	plot=plot, width=20, height=10, limitsize = FALSE) 
 
-ggsave("~/Desktop/NT_fullhistogram.png", 
-	plot=histogram, width=20, height=10, limitsize = FALSE) 
+ggsave("~/Desktop/NT_fullbarplot.png", 
+	plot=plot, width=20, height=10, limitsize = FALSE) 
 
 ```
 
