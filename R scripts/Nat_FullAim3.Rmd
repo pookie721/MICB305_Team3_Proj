@@ -1,0 +1,558 @@
+---
+title: "Nat_FullAim3"
+output: html_document
+---
+
+```{r Load data and libraries}
+# install.packages("devtools")
+# devtools::install_github("cafferychen777/ggpicrust2")
+# devtools::install_github("biobakery/Maaslin2")
+# install.packages("MicrobiomeStat")
+# BiocManager::install("KEGGREST")
+# BiocManager::install("Maaslin2")
+# BiocManager::install("MicrobiomeStat")
+# install.packages("GGally")
+library(tidyverse)
+library(ggrepel)
+library(phyloseq)
+library(ggpicrust2)
+library(Maaslin2)
+library(MicrobiomeStat)
+library(ggplot2)
+library(patchwork)
+
+
+```
+
+```{r Load initial dataset for viewing}
+
+phyloseq = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/phyloseq_taxonomy.rds")
+
+#ps_rare = phyloseq %>% rarefy_even_depth(sample.size = 87521, rngseed = 12)
+#table(sample_sums(ps_rare))
+
+```
+
+```{r Load datasets for PiCRUSt2}
+
+meta = phyloseq %>%
+.@sam_data %>%
+data.frame()%>%
+rownames_to_column("sample_name")
+
+
+ko=read.delim("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/path_abun_unstrat.tsv", row.names=1, 
+check.names=FALSE)
+
+```
+
+### Running PICRUSt2
+
+```{r Differential analysis}
+
+#Perform pathway differential abundance analysis (DAA) using LinDA method 
+daa_results_df = pathway_daa(abundance= ko,
+                             metadata=meta,
+                             group="Time_of_Collection_categorical",
+                             daa_method="LinDA",
+                             select=NULL, reference=NULL)
+
+
+daa_annotated_results_df = pathway_annotation(pathway="MetaCyc", 
+                                              daa_results_df=daa_results_df,
+                                              ko_to_kegg=FALSE)
+
+saveRDS(daa_annotated_results_df,"~/Desktop/group_project/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
+
+daa_annotated_results_df = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
+view(daa_annotated_results_df)
+
+```
+
+
+
+```{r new meta for each dose}
+
+meta0 <- meta |>
+filter(dose_categorical == "0_dose")
+
+
+meta01 <- meta |>
+filter(dose_categorical == "0.1_dose")
+
+
+meta025 <- meta |>
+filter(dose_categorical == "0.25_dose")
+
+
+meta1 <- meta |>
+filter(dose_categorical == "1_dose")
+
+
+
+```
+
+##Running DAA by time point 4 times, once per dose
+
+```{r}
+
+# for dose 0 Gy
+
+daa_results_0 = pathway_daa(abundance= ko,
+                             metadata=meta0,
+                             group="Time_of_Collection_categorical",
+                             daa_method="LinDA",
+                             select=NULL, 
+                             reference="Time_of_Collection_categorical")
+
+daa_annotated_dose_0 = pathway_annotation(pathway="MetaCyc", 
+                                              daa_results_df=daa_results_0,
+                                              ko_to_kegg=FALSE)
+
+
+# for dose 0.1Gy
+daa_results_01 = pathway_daa(abundance= ko,
+                             metadata=meta01,
+                             group="Time_of_Collection_categorical",
+                             daa_method="LinDA",
+                             select=NULL, 
+                             reference="Time_of_Collection_categorical:10_days")
+
+daa_annotated_dose_01 = pathway_annotation(pathway="MetaCyc", 
+                                              daa_results_df=daa_results_01,
+                                              ko_to_kegg=FALSE)
+
+# for dose 0.25Gy
+daa_results_025 = pathway_daa(abundance= ko,
+                             metadata=meta025,
+                             group="Time_of_Collection_categorical",
+                             daa_method="LinDA",
+                             select=NULL, 
+                             reference="Time_of_Collection_categorical:10_days")
+
+
+daa_annotated_dose_025 = pathway_annotation(pathway="MetaCyc", 
+                                              daa_results_df=daa_results_025,
+                                              ko_to_kegg=FALSE)
+
+# for dose 1 Gy
+daa_results_1 = pathway_daa(abundance= ko,
+                             metadata=meta1,
+                             group="Time_of_Collection_categorical",
+                             daa_method="LinDA",
+                             select=NULL, 
+                             reference="Time_of_Collection_categorical:10_days")
+
+daa_annotated_dose_1 = pathway_annotation(pathway="MetaCyc", 
+                                              daa_results_df=daa_results_1,
+                                              ko_to_kegg=FALSE)
+
+```
+
+```{r volcano}
+
+
+#0 gy
+plot_data_0 <- daa_annotated_dose_0 %>%
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)|>
+  mutate(log10_p_adjust= -log10(p_adjust))
+  
+  
+volcano_0 <- ggplot(plot_data_0, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant))+ 
+geom_point(size=3, alpha=0.7) + 
+theme_minimal() +
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+
+  theme( plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.position = "bottom"
+  )
+
+
+volcano_0
+
+#0.1 Gy
+plot_data_01 <- daa_annotated_dose_01 %>%
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+    mutate(log10_p_adjust= -log10(p_adjust))
+  
+volcano_01 <- ggplot(plot_data_01, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + 
+geom_point(size=3, alpha=0.7) + 
+theme_minimal() +
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0.1 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 12),
+    legend.position = "bottom"
+  )
+
+volcano_01
+
+#0.25 Gy
+
+plot_data_025 <- daa_annotated_dose_025 %>%
+  filter(!is.na(p_adjust), p_adjust > 0, p_adjust <= 1) %>%
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+  mutate(log10_p_adjust= -log10(p_adjust))
+  
+volcano_025 <- ggplot(plot_data_025, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + 
+geom_point(size=3, alpha=0.7) + 
+theme_minimal() +
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "0.25 Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous(limits = c(-5,5))+
+  scale_x_continuous(limits=c(-0.5,1))+theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.position = "bottom"
+  )
+
+volcano_025
+
+
+#1Gy
+plot_data_1 <- daa_annotated_dose_1 %>%
+  mutate(significant = p_adjust<0.05 & abs(log2_fold_change) >=1)%>%
+  mutate(log10_p_adjust= -log10(p_adjust))
+
+volcano_1 <- ggplot(plot_data_1, aes(x=log2_fold_change, y=log10_p_adjust, colour=significant)) + geom_point(size=3, alpha=0.7) + 
+theme_minimal() +
+scale_color_manual(values = c("TRUE" = "thistle1", "FALSE" = "olivedrab")) +geom_vline(xintercept = c(-1,1), linetype = "dashed", alpha = 0.5) + geom_hline(yintercept = 0.05, linetype = "dashed", alpha=0.5)+
+labs(title = "1Gy", x = "log 2 fold change", y = "-log 10 p values") + theme(legend.position = "bottom")+
+  scale_y_continuous()+
+  scale_x_continuous()+theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.position = "bottom"
+  )
+
+
+volcano_1
+
+all_volcano_unrare <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
+all_volcano_unrare
+
+ggsave("~/Desktop/group_project/NT_volcano_unrare.png", 
+	plot=all_volcano_unrare, width=20, height=20, limitsize = FALSE) 
+
+
+
+
+```
+
+```{r volcano improved}
+library(ggrepel)
+
+#0.1 Gy
+
+
+plot_data_01 <- daa_annotated_dose_01 %>%
+  mutate(
+    log10_p_adjust= -log10(p_adjust),
+    significant = p_adjust<0.05 & abs(log2_fold_change) >=1,
+    status = case_when( p_adjust<0.05 & log2_fold_change > 1 ~ "Enriched",
+                      p_adjust<0.05 & log2_fold_change < -1 ~ "Depleted", 
+                               TRUE ~ "Not Significant"),
+    status = factor(status, levels = c("Enriched", "Depleted", "Not Significant")))
+
+  
+volcano_01_improved <- ggplot(plot_data_01, aes(x=log2_fold_change, y=log10_p_adjust, colour=status)) + 
+geom_point(size=3, alpha =1) + 
+  geom_label_repel(
+  data = . %>% filter(status == "Enriched"),
+  aes(label = description),
+  size = 4,
+  max.overlaps = 10)+
+theme_minimal() +
+scale_color_manual(values = c("Enriched" = "palevioletred", "Depleted" = "olivedrab", "Not Significant"= "azure3"), drop=FALSE)   + 
+geom_vline(xintercept=0, linetype="dashed", alpha =1 )+ geom_hline(yintercept = 1.3, linetype = "dashed", alpha=1)+
+labs(title = "0.1 Gy", x = "GLM Coefficient", y = "-log10(P)") + theme(legend.position = "bottom")+
+ ylim(c(0,2)) +
+  xlim(c(-4,4))+
+  theme(plot.title = element_text(size = 20, face = "bold"),
+    axis.title = element_text(size = 15),
+    axis.text = element_text(size = 15),
+    panel.grid = element_blank(),
+    legend.position = "right",
+     panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8))
+
+volcano_01_improved
+
+ggsave("~/Desktop/group_project/NT_volcano_01.png", 
+	plot=volcano_01_improved, width=10, height=10, limitsize = FALSE) 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_01.png", 
+	plot=volcano_01_improved, width=10, height=10, limitsize = FALSE) 
+
+
+
+#1 Gy 
+
+plot_data_1 <- daa_annotated_dose_1 %>%
+   mutate(log10_p_adjust= -log10(p_adjust),
+    significant = p_adjust<0.05 & abs(log2_fold_change) >=1,
+    status = case_when( p_adjust<0.05 & log2_fold_change > 1 ~ "Enriched",
+                      p_adjust<0.05 & log2_fold_change < -1 ~ "Depleted", 
+                               TRUE ~ "Not Significant"),
+    status = factor(status, levels = c("Enriched", "Depleted", "Not Significant")))
+
+
+volcano_1_improved <- ggplot(plot_data_1, aes(x=log2_fold_change, y=log10_p_adjust, colour=status, label=description)) + geom_point(size=4, alpha=1) + 
+geom_label_repel(
+  data = . %>% filter(status == "Depleted"),
+  aes(label = description),
+  size = 4,
+  max.overlaps = 10
+)+
+theme_minimal() +
+scale_color_manual(values = c("Enriched" = "palevioletred", "Depleted" = "olivedrab", "Not Significant"= "azure3"), drop=FALSE) + 
+geom_hline(yintercept = 1.3, linetype = "dashed", alpha=1)+
+geom_vline(xintercept=0, linetype="dashed", alpha =1 )+
+labs(title = "1 Gy",  x = "GLM Coefficient", y = "-log10(P)") + theme(legend.position = "bottom")+
+  ylim(c(0,4)) +
+  xlim(c(-4,4))+
+  theme(
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    panel.grid = element_blank(),
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8)
+  )
+
+volcano_1_improved
+
+ggsave("~/Desktop/group_project/NT_volcano_1.png", 
+	plot=volcano_1_improved, width=10, height=10, limitsize = FALSE) 
+
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_1.png", 
+	plot=volcano_1_improved, width=10, height=10, limitsize = FALSE) 
+
+
+
+
+
+```
+
+
+
+
+```{r}
+
+# dose 0 Gy has no significant output 
+
+daa_annotated_dose_0 |>
+  filter(p_adjust < 0.05, abs(log2_fold_change) >=1 | abs(log2_fold_change) <=-1) |>
+nrow()
+
+# dose 0.1Gy has no significant output 
+
+daa_annotated_dose_01 |>
+  filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
+nrow()
+
+top_01=daa_annotated_dose_01 |>
+  filter(p_adjust<0.05, abs(log2_fold_change)>=1) |>
+  arrange(p_adjust)
+ 
+ko_significant_01 <- ko[rownames(ko) %in% top_01$feature,
+                     colnames(ko) %in% meta01$sample_name]
+
+# dose 0.25Gy has  significant ouput 
+
+daa_annotated_dose_025 |>
+  filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
+nrow()
+
+
+
+ # dose 1 Gy has significant output!
+
+daa_annotated_dose_1 |>
+  filter(p_adjust < 0.05, abs(log2_fold_change) >=1) |>
+nrow()
+
+top_1=daa_annotated_dose_1 |>
+  filter(p_adjust<0.05, abs(log2_fold_change)>=1) |>
+  arrange(p_adjust)
+ 
+ko_significant_1 <- ko[rownames(ko) %in% top_1$feature,
+                     colnames(ko) %in% meta1$sample_name]
+
+source("~/Desktop/group_project/ggpicrust2_errorbar_function_fixed.R")
+ 
+
+
+peb01=pathway_errorbar_fixed(abundance=ko_significant_01,
+                  daa_results_df=top_01,
+                  Group=meta01$Time_of_Collection_categorical,
+                  wrap_label=T, wraplength=10,
+                  fc_cutoff=F, order_by_log=F,
+                  p_values_threshold=0.05,
+                  order= "group",
+                  ko_to_kegg=FALSE,
+                  p_value_bar=TRUE,
+                  x_lab="description")
+
+
+
+peb1=pathway_errorbar_fixed(abundance=ko_significant_1,
+                  daa_results_df=top_1,
+                  Group=meta1$Time_of_Collection_categorical,
+                  wrap_label=T, wraplength=10,
+                  fc_cutoff=F, order_by_log=F,
+                  p_values_threshold=0.05,
+                  order= "group",
+                  ko_to_kegg=FALSE,
+                  p_value_bar=TRUE,
+                  x_lab="description")
+
+ggsave("~/Desktop/group_project/NTpeb01Gy.unrare.png", plot=peb01, width=35, height=15, limitsize=FALSE)
+ 
+ggsave("~/Desktop/group_project/NTpeb1Gy.unrare.png", plot=peb1, width=35, height=15, limitsize=FALSE)
+
+```
+
+```{r histogram}
+
+#Do it for 0.1Gy
+
+histogram_01 <- plot_data_01 %>%
+  filter(status != "Not Significant") %>%
+  mutate(
+    sign_log10p = ifelse(status == "Depleted", -log10_p_adjust, log10_p_adjust),
+    dose = "0.1 Gy") %>%
+    arrange(sign_log10p)
+
+
+bar_plot_01 <- ggplot(histogram_01, aes(x = sign_log10p, y = description, fill = status)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c(
+    "Enriched" = "palevioletred",
+    "Depleted" = "olivedrab"),
+    drop=FALSE)+
+  scale_x_continuous(limits = c(-3, 3)) +   
+  geom_vline(xintercept = 0, color = "black", linewidth = 0.5, linetype="dashed") +
+  facet_wrap(~dose)+
+  labs(x = "Log2 fold change",
+    y = "Pathways") +
+  theme_minimal() +
+  theme(plot.title      = element_text(size = 20, face = "bold"),
+      axis.title.x      = element_text(size = 18, face="bold"),
+      axis.title.y      = element_text(size = 18, face="bold"),
+      strip.background = element_rect(fill = "grey95", color = "black", linewidth = 0.3),
+      strip.text = element_text(size=20, face = "bold"),
+      axis.text.y     = element_text(size = 17),
+      panel.grid.major = element_line(color = "gray80", size = 0.25),
+      panel.grid.minor = element_line(color = "gray90", linetype = "dashed"))
+
+
+bar_plot_01
+
+ggsave("~/Desktop/group_project/NT_histogram_01.png", plot=bar_plot_01, width=10, height=15, limitsize=FALSE)
+
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_histogram_01.png", 
+	plot=bar_plot_01, width=10, height=10, limitsize = FALSE) 
+
+
+
+
+# For 1 Gy (has both Enriched and Depleted)
+histogram_1 <- plot_data_1 %>%
+  filter(status != "Not Significant", !is.na(description)) %>%
+  mutate(
+    sign_log10p = ifelse(status == "Depleted", -log10_p_adjust, log10_p_adjust),
+    dose="1 Gy") %>%
+    arrange(sign_log10p) 
+  
+
+
+bar_plot_1 <- ggplot(histogram_1, aes(x = sign_log10p, y = description, fill = status)) +
+  geom_bar(stat = "identity") +
+  scale_fill_manual(values = c(
+    "Enriched" = "palevioletred",
+    "Depleted" = "olivedrab"),
+    drop=FALSE)+
+   scale_x_continuous(limits = c(-3.6, 3)) + 
+  geom_vline(xintercept = 0, color = "black", linewidth = 0.5, linetype="dashed") +
+  facet_wrap(~dose)+
+  labs(x = "Log2 fold change",
+    y = "") +
+  theme_minimal() +
+  theme(plot.title      = element_text(size = 20, face = "bold"),
+      axis.title.x      = element_text(size = 18, face="bold"),
+      axis.title.y      = element_text(size = 18, face="bold"),
+      strip.background = element_rect(fill = "grey95", color = "black", linewidth = 0.3),
+      strip.text = element_text(size=20, face = "bold"),
+      axis.text.y     = element_text(size = 17),
+      panel.grid.major = element_line(color = "gray80", size = 0.25),
+      panel.grid.minor = element_line(color = "gray90", linetype = "dashed"))
+
+
+bar_plot_1
+
+
+ggsave("~/Desktop/group_project/NT_histogram_1.png", plot=bar_plot_1, width=10, height=15, limitsize=FALSE)
+
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_histogram_1.png", 
+	plot=bar_plot_1, width=10, height=10, limitsize = FALSE) 
+
+
+
+#Combined histogram plot 
+
+histogram <- bar_plot_01 + bar_plot_1 + plot_layout(guides = "collect") +
+  theme(legend.position = "right")
+
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_fullhistogram.png", 
+	plot=histogram, width=20, height=10, limitsize = FALSE) 
+
+ggsave("~/Desktop/NT_fullhistogram.png", 
+	plot=histogram, width=20, height=10, limitsize = FALSE) 
+
+```
+
+
+
+
+
+
+```{r}
+
+# Check how many pass p_adjust only
+daa_annotated_dose_0 |> 
+  filter(p_adjust < 0.05) |>
+  nrow()
+daa_annotated_dose_01 |> 
+  filter(p_adjust < 0.05) |> 
+  nrow()
+daa_annotated_dose_025 |> 
+  filter(p_adjust < 0.05) |> 
+  nrow()
+daa_annotated_dose_1 |> 
+  filter(p_adjust < 0.05) |> 
+  nrow()
+
+# Check how many pass fold change only
+daa_annotated_dose_0 |> 
+  filter(abs(log2_fold_change) >= 1) |> 
+  nrow()
+daa_annotated_dose_01 |> 
+  filter(abs(log2_fold_change) >= 1) |> 
+  nrow()
+daa_annotated_dose_025 |> 
+  filter(abs(log2_fold_change) >= 1) |> 
+  nrow()
+daa_annotated_dose_1 |> 
+  filter(abs(log2_fold_change) >= 1) |> 
+  nrow()
+
+
+```
