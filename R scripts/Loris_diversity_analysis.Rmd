@@ -244,6 +244,34 @@ pairwise_stats = pairwise_stats %>%
   filter(!is.na(Pval)) %>%
   mutate(Pval = round(Pval, 4))
 pairwise_stats
+
+# Making sepparate distance matrices and calculating the P-values form there:
+run_adonis <- function(dose_rad) {
+ps_sub <- subset_samples(ps_rare, dose_categorical == dose_rad)
+ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+#Distance matrixes
+dist_sub <- phyloseq::distance(ps_sub, method = "wunifrac")
+#metadata:
+meta_sub <- sample_data(ps_sub) %>% as.data.frame()
+#Match distance matrix
+samples_keep <- rownames(meta_sub)
+dist_sub <- as.dist(as.matrix(dist_sub)[samples_keep, samples_keep])
+#PERMANOVA
+res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
+data = meta_sub)
+#Format output
+res_df <- as.data.frame(res) %>%
+tibble::rownames_to_column("Variable") %>%
+dplyr::filter(Variable == "Time_of_Collection_categorical") %>%
+dplyr::mutate(dose = dose_rad, p_value = round(`Pr(>F)`, 4), R2 = R2)
+
+return(res_df)
+}
+
+radiation_levels <- unique(sample_data(ps_rare)$dose_categorical)
+
+beta_per_dose <- lapply(radiation_levels, run_adonis) %>%
+dplyr::bind_rows()
 ```
 
 #### Faith's Phylogenetic Diversity analysis:
