@@ -137,7 +137,7 @@ Here is my code for the Beta diversity analysis. Anything notable about the resu
 ```{r Beta_diversity, fig.height=7, fig.width=7}
 ### Plotting Beta-diversity:
 ps_bray = phyloseq::distance(ps_rare, method = "wunifrac")
-View(as.matrix(ps_bray))
+#View(as.matrix(ps_bray))
 
 # MDS scaling:
 set.seed(420)
@@ -146,9 +146,9 @@ mds = metaMDS(ps_bray)
 # Extracting data:
 mds_data = mds$points %>% as.data.frame %>%
   merge(sample_data(ps_rare), by='row.names', sort=F)
-head(mds_data)
+#head(mds_data)
 
-# Alternative method with a function:
+# Alternative method with a function (the above didnt do everything sepparateley, which would bring down any sort of differnces):
 mds_by_dose <- function(dose_level) {
   # Subsetting samples (like in diferential abundance analysis)
   samples_keep <- sample_names(ps_rare)[
@@ -194,42 +194,22 @@ plot_beta
 
 ggsave("../Results/LT_Beta_diversity_nopval.png", plot = plot_beta, width = 7, height = 7.3, units = "in")
 
-# Calculating the stats with a function:
+#Calculating the stats with a function:
+metadata <- as.data.frame(sample_data(ps_rare))
+
 run_adonis <- function(dose_rad) {
 # Subset metadata for the desired radiation dose
   meta_sub <- metadata %>%
-    filter(dose_categorical == dose_rad,
-           Time_of_Collection_categorical %in% c("10_days", "30_days"))
-# Subseting the distance matrix to the same samples
+    dbplyr::filter(dose_categorical == dose_rad)
+ #Subseting the distance matrix to the same samples
   dist_sub <- as.dist(as.matrix(ps_bray)[rownames(meta_sub), rownames(meta_sub)])
-# Run PERMANOVA (adonis2)
+ #Run PERMANOVA (adonis2)
   res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
                  data = meta_sub)
-# Convert to a dataframe and add the dose
+ #Convert to a dataframe and add the dose
   res_df <- as.data.frame(res) %>%
-    rownames_to_column("Variable") %>%
-    mutate(dose = dose_rad)
-
-  return(res_df)
-}
-
-run_adonis <- function(dose_rad) {
-# Subset metadata for the desired radiation dose
-  meta_sub <- metadata %>%
-    filter(dose_categorical == dose_rad,
-           Time_of_Collection_categorical %in% c("10_days", "30_days"))
-# Subseting the distance matrix to the same samples
-  samples_keep <- rownames(meta_sub)
-  dist_sub <- as.dist(
-    as.matrix(ps_bray)[samples_keep, samples_keep]
-  )
-# Run PERMANOVA (adonis2)
-  res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
-                 data = meta_sub)
-# Convert to a dataframe and add the dose
-  res_df <- as.data.frame(res) %>%
-    rownames_to_column("Variable") %>%
-    mutate(dose = dose_rad)
+    tibble::rownames_to_column("Variable") %>%
+    dbplyr::mutate(dose = dose_rad)
 
   return(res_df)
 }
@@ -244,8 +224,9 @@ pairwise_stats = pairwise_stats %>%
   filter(!is.na(Pval)) %>%
   mutate(Pval = round(Pval, 4))
 pairwise_stats
+# It turned out that doses of 0.1 Gy and 1 Gy were significant
 
-# Making sepparate distance matrices and calculating the P-values form there:
+# Making sepparate distance matrices and calculating the P-values from there (may be more accurate than the one above but is a work in progress):
 run_adonis <- function(dose_rad) {
 ps_sub <- subset_samples(ps_rare, dose_categorical == dose_rad)
 ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
@@ -256,7 +237,7 @@ meta_sub <- sample_data(ps_sub) %>% as.data.frame()
 #Match distance matrix
 samples_keep <- rownames(meta_sub)
 dist_sub <- as.dist(as.matrix(dist_sub)[samples_keep, samples_keep])
-#PERMANOVA
+#PERMANOVA thing again:
 res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
 data = meta_sub)
 #Format output
@@ -268,10 +249,11 @@ dplyr::mutate(dose = dose_rad, p_value = round(`Pr(>F)`, 4), R2 = R2)
 return(res_df)
 }
 
-radiation_levels <- unique(sample_data(ps_rare)$dose_categorical)
+radiation_levels <- unique(meta_sub$dose_categorical)
 
-beta_per_dose <- lapply(radiation_levels, run_adonis) %>%
-dplyr::bind_rows()
+beta_per_dose <- lapply(radiation_levels, run_adonis) %>% bind_rows()
+
+# not quite working yet /\(:/)/\
 ```
 
 #### Faith's Phylogenetic Diversity analysis:
