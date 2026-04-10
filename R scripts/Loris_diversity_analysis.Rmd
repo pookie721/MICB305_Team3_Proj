@@ -231,7 +231,7 @@ pairwise_stats
 
 run_adonis <- function(dose_rad) {
 meta_stuff <- data.frame(sample_data(ps_rare))
-meta_stuff <- meta_stuff[meta_stuff$Time_of_Collection_categorical %in% c("10", "30"),]
+meta_stuff <- meta_stuff[meta_stuff$Time_of_Collection_categorical %in% c("10_days", "30_days"),]
 
 keep_samples <- rownames(meta_stuff)[meta_stuff$dose_categorical == dose_rad]
 
