@@ -195,21 +195,22 @@ plot_beta
 ggsave("../Results/LT_Beta_diversity_nopval.png", plot = plot_beta, width = 7, height = 7.3, units = "in")
 
 #Calculating the stats with a function:
-metadata <- as.data.frame(sample_data(ps_rare))
+library(dplyr, warn.conflicts = FALSE)
+metadata <- sample_data(ps_rare) %>% as.data.frame() %>% rownames_to_column("SampleID")
 
 run_adonis <- function(dose_rad) {
 # Subset metadata for the desired radiation dose
   meta_sub <- metadata %>%
-    dbplyr::filter(dose_categorical == dose_rad)
+    dplyr::filter(dose_categorical == dose_rad)
  #Subseting the distance matrix to the same samples
-  dist_sub <- as.dist(as.matrix(ps_bray)[rownames(meta_sub), rownames(meta_sub)])
+  dist_sub <- as.dist(as.matrix(ps_bray)[meta_sub$SampleID, meta_sub$SampleID])
  #Run PERMANOVA (adonis2)
   res <- adonis2(dist_sub ~ Time_of_Collection_categorical,
                  data = meta_sub)
  #Convert to a dataframe and add the dose
   res_df <- as.data.frame(res) %>%
     tibble::rownames_to_column("Variable") %>%
-    dbplyr::mutate(dose = dose_rad)
+    dplyr::mutate(dose = dose_rad)
 
   return(res_df)
 }
@@ -227,13 +228,20 @@ pairwise_stats
 # It turned out that doses of 0.1 Gy and 1 Gy were significant
 
 # Making sepparate distance matrices and calculating the P-values from there (may be more accurate than the one above but is a work in progress):
+
 run_adonis <- function(dose_rad) {
-ps_sub <- subset_samples(ps_rare, dose_categorical == dose_rad)
+meta_stuff <- data.frame(sample_data(ps_rare))
+meta_stuff <- meta_stuff[meta_stuff$Time_of_Collection_categorical %in% c("10", "30"),]
+
+keep_samples <- rownames(meta_stuff)[meta_stuff$dose_categorical == dose_rad]
+
+ps_sub <- prune_samples(keep_samples, ps_rare)
 ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
 #Distance matrixes
 dist_sub <- phyloseq::distance(ps_sub, method = "wunifrac")
-#metadata:
-meta_sub <- sample_data(ps_sub) %>% as.data.frame()
+#metadata subsets:
+meta_sub <- data.frame(sample_data(ps_sub))
+meta_sub$Time_of_Collection_categorical <- as.factor(meta_sub$Time_of_Collection_categorical)
 #Match distance matrix
 samples_keep <- rownames(meta_sub)
 dist_sub <- as.dist(as.matrix(dist_sub)[samples_keep, samples_keep])
@@ -249,7 +257,7 @@ dplyr::mutate(dose = dose_rad, p_value = round(`Pr(>F)`, 4), R2 = R2)
 return(res_df)
 }
 
-radiation_levels <- unique(meta_sub$dose_categorical)
+radiation_levels <- unique(metadata$dose_categorical)
 
 beta_per_dose <- lapply(radiation_levels, run_adonis) %>% bind_rows()
 
