@@ -7,7 +7,11 @@ output: html_document
 
 For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
 
-Since my work on the diversity analysis took less time than expected, I will also work on Differential abundance analysis, to fulfill Aim 2 of the final research paper. Due to the indicator species analysis being pretty much already completed, I'm using this script to investigate differential abundance with ANCOM-BC2 instead. I will do two sepparate analysis, one where I aggregate to genus level and one where I aggregate to family or class level. I may use this file to also do core microbiome analysis as well, if time permits and no-one has worked on it yet.
+Since my work on the diversity analysis took less time than expected, I will also work on Differential abundance analysis, to fulfill Aim 2 of the final research paper. Due to the indicator species analysis being pretty much already completed, I'm using this script to investigate differential abundance with ANCOM-BC2 instead.\* I will do two separate analysis, one where I aggregate to genus level and one where I aggregate to family or class level. I may use this file to also do core micro-biome analysis as well, if time permits and no-one has worked on it yet.\*\*
+
+\*As it turned out, someone else already took over differential abundance analysis. ANCOMBC2 is apparently too robust anyway, and they did it with MaAslin2.
+
+\*\* This person also did core micro-biome as well, so this part is irrelevant as well.
 
 #### Differential abundance with ANCOM-BC2 (genus-level):
 
@@ -16,8 +20,8 @@ Here is my code for the differential abundance analysis. Anything notable about 
 ```{r Indicator Taxa Analysis, fig.height=9, fig.width=8.5}
 library(tidyverse)
 library(phyloseq)
-library(microbiome)
-library(indicspecies)
+#library(microbiome)
+#library(indicspecies)
 library(ANCOMBC)
 
 phyloseq = readRDS('../Datasets/phyloseq_taxonomy.rds')
@@ -33,30 +37,25 @@ ancombc2_out = ancombc2(data = ps_genus_glom,
 
 statistical_table = ancombc2_out$res
 
-#writexl::write_xlsx(statistical_table,'../Results/Tables/Module 14 - ANCOMBC Results.xlsx')
 
 # Filter stats to only include taxa that are differentially abundant between the time points:
 taxa_to_plot = statistical_table %>% 
-  filter(diff_robust_Time_of_Collection_categorical30_days==T) 
+  filter(diff_robust_Time_of_Collection_categorical30_days==T)
+
+# It was eventually recomended to me to do everything sepparateley per dose so the above code is obsolete. I essentially used the same format for analysing differential abundance for all the subsequent taxonomic aggregations
 
 # function 2.0 (runs but takes a terribly long time):
 ancombc2_by_dose_G <- function(dose_for_ancom) {
-
-  samples_keep <- sample_names(ps_genus_glom)[
-    sample_data(ps_genus_glom)$dose_categorical == dose_for_ancom
-  ]
-
-  ps_sub <- prune_samples(samples_keep, ps_genus_glom)
-
-  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
-
-  out <- ancombc2(
-    data = ps_sub,
+# Subsetting the samples by dose:
+  samples_keep <- sample_names(ps_genus_glom)[sample_data(ps_genus_glom)$dose_categorical == dose_for_ancom]
+ps_sub <- prune_samples(samples_keep, ps_genus_glom)
+ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+# Running ANCOMBC2 on each dose (apparently its obsolete because the method is too rubust anyway)
+  out <- ancombc2(data = ps_sub,
     fix_formula = "Time_of_Collection_categorical",
     p_adj_method = "BH",
-    prv_cut = 0.1
-  )
-
+    prv_cut = 0.1)
+  
   res <- out$res %>%
     mutate(dose = dose_for_ancom)
 
@@ -76,8 +75,7 @@ genus_table = tax_table(ps_genus_glom) %>%
 all_DA_results_G = all_DA_results_G %>%
   left_join(genus_table, by = "taxon")
 
-# filtering for only Log fold changes above 1
-
+# filtering for only Log fold changes above 1 (and also recoding names since this was going to be the final publication-ready plot)
 G_DA_results_best = all_DA_results_G %>% 
   filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1.5) %>% 
   filter(dose != "0_dose") %>% 
@@ -112,24 +110,17 @@ This is basically the same thing as above but aggregated to a higher taxonomic l
 # aggregating to the class level:
 ps_class_glom = tax_glom(phyloseq, 'Class')
 
-# same function but tailored to the new phyloseq objects:
-ancombc2_by_dose <- function(dose_for_ancom) {
-
-  samples_keep <- sample_names(ps_class_glom)[
-    sample_data(ps_class_glom)$dose_categorical == dose_for_ancom
-  ]
-
-  ps_sub <- prune_samples(samples_keep, ps_class_glom)
-
-  ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
-
-  out <- ancombc2(
-    data = ps_sub,
+# same function but tailored to the new phyloseq aggregation objects:
+ancombc2_by_dose_C <- function(dose_for_ancom) {
+# Subsetting the samples by dose:
+  samples_keep <- sample_names(ps_class_glom)[sample_data(ps_class_glom)$dose_categorical == dose_for_ancom]
+ps_sub <- prune_samples(samples_keep, ps_class_glom)
+ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
+# Running ANCOMBC2 on each dose (apparently its obsolete because the method is too rubust anyway)
+  out <- ancombc2(data = ps_sub,
     fix_formula = "Time_of_Collection_categorical",
     p_adj_method = "BH",
-    prv_cut = 0.1
-  )
-
+    prv_cut = 0.1)
   res <- out$res %>%
     mutate(dose = dose_for_ancom)
 
@@ -138,7 +129,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_class_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_C = lapply(dose_levels, ancombc2_by_dose_C) %>%
   bind_rows()
 
 # plotting log2 fold changes:
@@ -146,13 +137,13 @@ class_table = tax_table(ps_class_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_C = all_DA_results_C %>%
   left_join(class_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+all_DA_results_best_C = all_DA_results_C %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
 
-all_DA_results_best %>%
+all_DA_results_best_C %>%
   ggplot(aes(Class,lfc_Time_of_Collection_categorical30_days, fill = Phylum)) +
   geom_col() +
   coord_flip() +
@@ -163,7 +154,7 @@ all_DA_results_best %>%
   labs(title = "Differential abundance for 4 radiation doses") +
   theme(legend.position = "bottom", legend.direction = "horizontal")
 
-# Visually it looks a lot better aggregated to class, not so squished as before. Even when plotting the genus-aggregation at family level, the whole thing was still super packed.
+# This ended up being unnecessary; as it turns out, Genus is about the highest level to which everything should be aggregated, since higher levels can cause certain information to be lost. So this wasnt really even necessary...
 ```
 
 #### Differential abundance with ANCOM-BC2 (family level):
@@ -173,24 +164,18 @@ This is basically the same thing as above but aggregated to the Family level, to
 ```{r Family-level analysis, fig.height=9, fig.width=8.5}
 ps_family_glom = tax_glom(phyloseq, 'Family')
 
-# same function but tailored to the new phyloseq objects:
-ancombc2_by_dose <- function(dose_for_ancom) {
-
-  samples_keep <- sample_names(ps_family_glom)[
-    sample_data(ps_family_glom)$dose_categorical == dose_for_ancom
-  ]
-
+# same function but tailored to the new phyloseq aggregation objects:
+ancombc2_by_dose_F <- function(dose_for_ancom) {
+# Subsetting the samples by dose:
+  samples_keep <- sample_names(ps_family_glom)[sample_data(ps_family_glom)$dose_categorical == dose_for_ancom]
   ps_sub <- prune_samples(samples_keep, ps_family_glom)
-
   ps_sub <- prune_taxa(taxa_sums(ps_sub) > 0, ps_sub)
 
-  out <- ancombc2(
-    data = ps_sub,
+# Running ANCOMBC2 on each dose (apparently its obsolete because the method is too rubust anyway)
+  out <- ancombc2(data = ps_sub,
     fix_formula = "Time_of_Collection_categorical",
     p_adj_method = "BH",
-    prv_cut = 0.1
-  )
-
+    prv_cut = 0.1)
   res <- out$res %>%
     mutate(dose = dose_for_ancom)
 
@@ -199,7 +184,7 @@ ancombc2_by_dose <- function(dose_for_ancom) {
 
 dose_levels = unique(sample_data(ps_family_glom)$dose_categorical)
 
-all_DA_results = lapply(dose_levels, ancombc2_by_dose) %>%
+all_DA_results_F = lapply(dose_levels, ancombc2_by_dose_F) %>%
   bind_rows()
 
 # plotting log2 fold changes:
@@ -207,13 +192,13 @@ family_table = tax_table(ps_family_glom) %>%
   as.data.frame() %>%
   tibble::rownames_to_column("taxon")
 
-all_DA_results = all_DA_results %>%
+all_DA_results_F = all_DA_results %>%
   left_join(family_table, by = "taxon")
 
 # filtering for only Log fold changes above 1
-all_DA_results_best = all_DA_results %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
+all_DA_results_best_F = all_DA_results_F %>% filter(abs(lfc_Time_of_Collection_categorical30_days) >= 1)
 
-all_DA_results_best %>%
+all_DA_results_best_F %>%
   ggplot(aes(Family,lfc_Time_of_Collection_categorical30_days, fill = Class)) +
   geom_col() +
   coord_flip() +
@@ -223,4 +208,6 @@ all_DA_results_best %>%
   ylab('Log-2 fold change') + xlab(NULL) +
   labs(title = "Differential abundance for 4 radiation doses") +
   theme(legend.position = "bottom", legend.direction = "horizontal")
+
+# This ended up being unnecessary; as it turns out, Genus is about the highest level to which everything should be aggregated, since higher levels can cause certain information to be lost. So this wasnt really even necessary...
 ```
