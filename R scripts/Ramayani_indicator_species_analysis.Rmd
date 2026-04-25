@@ -1,0 +1,115 @@
+---
+title: "indicator_species_analysis"
+output: html_document
+---
+
+Loading Libraries and Dataset
+
+```{r}
+# loading libraries
+library(phyloseq)
+library(indicspecies)
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+library(scales)
+
+# downloading phyloseq object
+ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+# wrangling of data and creating a new column that combines dose and time variables for analysis
+meta <- as.data.frame(sample_data(ps))
+meta$dose_and_time <- paste(meta$dose_categorical, meta$Time_of_Collection_categorical, sep = "_")
+sample_data(ps) <- sample_data(meta)
+
+```
+
+Rarefication of Data and Applying tax_glom
+
+```{r}
+
+# Rarifying aata and setting tax_glom to Genus level
+ps_rare = ps %>%
+  rarefy_even_depth(sample.size = 87521, rngseed = 123)
+ps_genus = tax_glom(ps_rare, 'Genus')
+ps_relab = microbiome::transform(ps_genus, 'compositional')
+ps_filt = filter_taxa(ps_relab, function(x) mean(x) > 0.001, TRUE)
+otu_table = data.frame(otu_table(ps_filt))
+```
+
+
+```{r}
+#Running indicator species analysis
+set.seed(321)
+indval = multipatt( t(otu_table), 
+            cluster= ps_filt@sam_data$dose_and_time,
+ 		  control = how(nperm = 999) )
+
+summary(indval, indvalcomp = TRUE)
+
+# Extract into table
+indval_table = as.data.frame(indval$sign)
+```
+
+```{r}
+# Filtering significant taxa
+phyla_to_plot = indval_table %>% 
+  filter(p.value < 0.05 ) %>% 
+  rownames()
+
+# Wrangling data for better visualization
+df_of_taxa = prune_taxa(phyla_to_plot, ps_filt) %>% psmelt() %>%
+  mutate(Genus = gsub("g__+", "", Genus),Genus = gsub("_", " ", Genus), dose_categorical = gsub("_", " ", dose_categorical), 
+         Time_of_Collection_categorical = gsub("_", " ",   Time_of_Collection_categorical))
+```
+
+
+
+```{r width = 12, height = 8}
+
+# box plot of indicator species analysis based on each dose
+isa_plot <- df_of_taxa %>% 
+  ggplot(aes(x = Time_of_Collection_categorical, y = Abundance)) +
+  
+  geom_boxplot(
+    fill = "#D9D9D9",
+    color = "black",
+    outlier.shape = NA,
+    width = 0.6
+  ) +
+  
+  geom_jitter(
+    aes(color = Genus),
+    width = 0.15,
+    size = 1.5,
+    alpha = 0.5,
+    show.legend = TRUE
+  ) +
+  
+  facet_wrap(~dose_categorical, ncol = 5, scales = "free") +
+  
+  labs(
+    x = "Days Post Radiation Exposure",
+    y = "Abundance",
+    title = "Genus Abundance Across Dose and Time",
+    subtitle = "Indicator species analysis", 
+    fill = "Genus",
+    color = "Genus"
+  ) +
+
+scale_color_manual(values = c("#F72585", "#7209B7")) +
+  
+  theme_classic(base_size = 14) +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    strip.text = element_text(size = 12),
+    plot.title = element_text(face = "bold", size = 16),
+    plot.subtitle = element_text(size = 12),
+    legend.position = "bottom")
+
+isa_plot
+
+ggsave("../Results/RP_indicatorspecies.png", width = 12, height = 8)
+
+```
+
