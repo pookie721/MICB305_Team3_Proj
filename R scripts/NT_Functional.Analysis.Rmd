@@ -42,7 +42,7 @@ phyloseq = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/phyloseq
 
 ### Load Functional Data for PICRUSt2
 
-Extract metadata from the phyloseq object and load pathway abundance table (unstratified)
+Extract metadata from the phyloseq object and load pathway abundance table (unstratified).
 
 ```{r Load PICRUSt2 functional data}
 
@@ -249,7 +249,7 @@ volcano_1
 all_volcano_draft <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
 all_volcano_draft
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/NT_volcano_draft.png", 
+ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_draft.png", 
 	plot=all_volcano_draft, width=20, height=20, limitsize = FALSE) 
 
 ```
