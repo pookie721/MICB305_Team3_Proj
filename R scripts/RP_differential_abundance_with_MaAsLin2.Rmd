@@ -1,0 +1,454 @@
+---
+title: "differential abundance 2nd attempt"
+output: html_document
+date: "2026-03-27"
+---
+
+```{r}
+library(Maaslin2)
+library(tidyverse)
+library(phyloseq)
+library(microViz)
+library(dplyr)
+library(tibble)
+library(stringr)
+library(RColorBrewer)
+library(ggplot2)
+library(knitr)
+library(dplyr)
+
+set.seed(321)
+
+ps = readRDS('../Datasets/phyloseq_taxonomy.rds')
+
+ps_glom = tax_glom(ps, 'Genus')
+```
+
+Since need to subset the metadata into each dose group, ran the analysis on each dose seperately and plotted only significant genera as relative abundance plots.
+
+```{r}
+# 0 Gy
+
+#subsetting phyloseq object for only 0 Gy
+ps_0dose = subset_samples(ps_glom, dose_categorical %in% c("0_dose"))
+
+df_abundance_0dose = as.data.frame(otu_table(ps_0dose))
+if (taxa_are_rows(ps_0dose)) { df_abundance_0dose <- t(df_abundance_0dose) }
+
+df_metadata_0dose = data.frame(sample_data(ps_0dose))
+
+df_abundance_0dose = df_abundance_0dose[match(rownames(df_metadata_0dose), rownames(df_abundance_0dose)),]
+
+# Attaching genus names to ASVs to get accurate information
+tax_table_df_0dose = as.data.frame(tax_table(ps_0dose))
+
+genus_names_0dose = as.character(tax_table_df_0dose$Genus)
+
+# Wrangling of data to ensure correct pairing of ASVs and relevant genera
+genus_names_0dose = stringr::str_remove(genus_names_0dose, " g__")
+
+genus_names_0dose[is.na(genus_names_0dose) | genus_names_0dose == ""] = "Unclassified"
+
+genus_names_0dose = make.unique(genus_names_0dose)
+
+colnames(df_abundance_0dose) <- genus_names_0dose
+
+# Running differential analysis using MaAsLin2 for 0 Gy
+fit_data_0dose = Maaslin2(
+    input_data = df_abundance_0dose,
+    input_metadata = df_metadata_0dose,
+    output = 'to_delete',
+    fixed_effects = c("Time_of_Collection_categorical"),
+    reference = 'Time_of_Collection_categorical,10_days',
+    normalization = "TSS",
+    transform = "AST",
+    min_abundance = 0.001, 
+  min_prevalence = 0.1, 
+  max_significance = 0.05,
+  plot_heatmap = FALSE,
+  plot_scatter = FALSE
+)
+
+# Saving results as a table and excel file
+statistical_table_0dose = fit_data_0dose$results
+
+writexl::write_xlsx(statistical_table_0dose,'../Results/Maaslin2_Results_0dose.xlsx')
+```
+
+
+```{r}
+
+# Filtering for significant genera
+
+maaslin_output_0dose = statistical_table_0dose %>% mutate(log2fc = log2(exp(statistical_table_0dose$coef)))
+
+taxa_to_plot_0dose = maaslin_output_0dose %>% filter(qval < 0.05, abs(log2fc) >= -1)
+
+#Plotting results based on log2 fold change
+taxa_to_plot_0dose %>%
+  ggplot(aes(feature,coef)) +
+  geom_col() +
+  coord_flip()
+
+taxa_to_plot_0dose
+
+```
+
+
+Since no significant genera found, no relative abundance plot created for 0 dose group.
+
+```{r}
+# 0.1 Gy
+
+
+# subsetting phyloseq object for only 0.1 Gy
+ps_0.1dose = subset_samples(ps_glom, dose_categorical %in% c("0.1_dose"))
+
+df_abundance_0.1dose = as.data.frame(otu_table(ps_0.1dose))
+
+if (taxa_are_rows(ps_0.1dose)) { df_abundance_0.1dose <- t(df_abundance_0.1dose) }
+
+df_metadata_0.1dose = data.frame(sample_data(ps_0.1dose))
+df_abundance_0.1dose = df_abundance_0.1dose[match(rownames(df_metadata_0.1dose), rownames(df_abundance_0.1dose)),]
+
+
+# Attaching genus names to ASVs to get accurate information
+tax_table_df_0.1dose = as.data.frame(tax_table(ps_0.1dose))
+
+genus_names_0.1dose = as.character(tax_table_df_0.1dose$Genus)
+
+# Wrangling of data to ensure correct pairing of ASVs and relevant genera
+genus_names_0.1dose = stringr::str_remove(genus_names_0.1dose, " g__")
+
+genus_names_0.1dose[is.na(genus_names_0.1dose) | genus_names_0.1dose == ""] = "Unclassified"
+
+genus_names_0.1dose = make.unique(genus_names_0.1dose)
+
+colnames(df_abundance_0.1dose) <- genus_names_0.1dose
+
+# Running differential analysis using MaAsLin2 for 0.1 Gy
+fit_data_0.1dose = Maaslin2(
+    input_data = df_abundance_0.1dose,
+    input_metadata = df_metadata_0.1dose,
+    output = 'to_delete',
+    fixed_effects = c("Time_of_Collection_categorical"),
+    reference = 'Time_of_Collection_categorical,10_days',
+    normalization = "TSS",
+    transform = "AST",
+    min_abundance = 0.001, 
+  min_prevalence = 0.1, 
+  max_significance = 0.05,
+  plot_heatmap = FALSE,
+  plot_scatter = FALSE
+)
+
+# Saving results as a table and excel file
+statistical_table_0.1dose = fit_data_0.1dose$results
+
+writexl::write_xlsx(statistical_table_0.1dose,'../Results/Maaslin2_Results_0.1dose.xlsx')
+```
+
+
+```{r}
+# Filtering for significant genera
+
+maaslin_output_0.1dose = statistical_table_0.1dose %>% mutate(log2fc = log2(exp(statistical_table_0.1dose$coef)))
+
+taxa_to_plot_0.1dose = maaslin_output_0.1dose %>% filter(qval < 0.05, abs(log2fc) >= -1)
+
+#Plotting results based on log2 fold change
+
+taxa_to_plot_0.1dose %>%
+  ggplot(aes(feature,log2fc, fill = feature)) +
+  geom_col(color = "black", width = 0.7) +           # Clean bar outlines
+  scale_fill_brewer(palette = "Set3") +             # Professional palette
+  theme_classic(base_size = 14) +                   # Clean theme, larger font
+  labs(
+    title = "Log2 Fold Change of Differential Abundance at 30 days Post Radiation Exposure (0.1Gy)",,
+    x = "Log2 Fold Change",
+    y = "Genus"
+  ) +
+  theme(
+    legend.position = "none",                       # Remove redundant legend
+    plot.title = element_text(face = "bold"),       # Bold title
+    axis.title = element_text(face = "plain")
+  ) +
+  coord_flip()
+
+taxa_to_plot_0.1dose
+
+```
+Since significant genera for 0.1 Gy, will make relevant abundance plots down below.
+
+```{r}
+# 0.25 Gy
+
+# subsetting phyloseq object for only 0.25 Gy
+ps_0.25dose = subset_samples(ps_glom, dose_categorical %in% c("0.25_dose"))
+
+df_abundance_0.25dose = as.data.frame(otu_table(ps_0.25dose))
+if (taxa_are_rows(ps_0.25dose)) { df_abundance_0.25dose <- t(df_abundance_0.25dose) }
+
+df_metadata_0.25dose = data.frame(sample_data(ps_0.25dose))
+
+df_abundance_0.25dose = df_abundance_0.25dose[match(rownames(df_metadata_0.25dose), rownames(df_abundance_0.25dose)),]
+
+# Attaching genus names to ASVs to get accurate information
+tax_table_df_0.25dose = as.data.frame(tax_table(ps_0.25dose))
+
+genus_names_0.25dose = as.character(tax_table_df_0.25dose$Genus)
+
+
+# Wrangling of data to ensure correct pairing of ASVs and relevant genera
+genus_names_0.25dose = stringr::str_remove(genus_names_0.25dose, " g__")
+
+genus_names_0.25dose[is.na(genus_names_0.25dose) | genus_names_0.25dose == ""] = "Unclassified"
+
+genus_names_0.25dose = make.unique(genus_names_0.25dose)
+
+colnames(df_abundance_0.25dose) <- genus_names_0.25dose
+
+# Running differential analysis using MaAsLin2 for 0.25 Gy
+fit_data_0.25dose = Maaslin2(
+    input_data = df_abundance_0.25dose,
+    input_metadata = df_metadata_0.25dose,
+    output = 'to_delete',
+    fixed_effects = c("Time_of_Collection_categorical"),
+    reference = 'Time_of_Collection_categorical,10_days',
+    normalization = "TSS",
+    transform = "AST",
+    min_abundance = 0.001, 
+  min_prevalence = 0.1, 
+  max_significance = 0.05,
+  # These plots increase run time and are usually poorly formatted, so you might as well stop them from being generated
+  plot_heatmap = FALSE,
+  plot_scatter = FALSE
+)
+
+# Saving results as a table and excel file
+statistical_table_0.25dose = fit_data_0.25dose$results
+
+writexl::write_xlsx(statistical_table_0.25dose,'../Results/Maaslin2_Results_0.25dose.xlsx')
+```
+
+
+
+```{r}
+# Filtering for significant genera
+maaslin_output_0.25dose = statistical_table_0.25dose %>% mutate(log2fc = log2(exp(statistical_table_0.25dose$coef)))
+
+taxa_to_plot_0.25dose = maaslin_output_0.25dose %>% filter(qval < 0.05, abs(log2fc) >= -1)
+
+#Plotting results based on log2 fold change
+taxa_to_plot_0.25dose %>%
+  ggplot(aes(feature,log2fc)) +
+  geom_col() +
+  coord_flip()
+
+taxa_to_plot_0.25dose
+```
+Since no significant genera found, no relative abundance plot created for 0.25 Gy.
+
+```{r}
+# 1 Gy
+
+# subsetting phyloseq object for only 1 Gy
+ps_1dose = subset_samples(ps_glom, dose_categorical %in% c("1_dose"))
+
+df_abundance_1dose = as.data.frame(otu_table(ps_1dose))
+if (taxa_are_rows(ps_1dose)) { df_abundance_1dose <- t(df_abundance_1dose) }
+
+df_metadata_1dose = data.frame(sample_data(ps_1dose))
+
+df_abundance_1dose = df_abundance_1dose[match(rownames(df_metadata_1dose), rownames(df_abundance_1dose)),]
+
+# Attaching genus names to ASVs to get accurate information
+tax_table_df_1dose = as.data.frame(tax_table(ps_1dose))
+
+genus_names_1dose = as.character(tax_table_df_1dose$Genus)
+
+# Wrangling of data to ensure correct pairing of ASVs and relevant genera
+genus_names_1dose = stringr::str_remove(genus_names_1dose, " g__")
+
+genus_names_1dose[is.na(genus_names_1dose) | genus_names_1dose == ""] = "Unclassified"
+
+genus_names_1dose = make.unique(genus_names_1dose)
+
+colnames(df_abundance_1dose) <- genus_names_1dose
+
+# Running differential analysis using MaAsLin2 for 1 Gy
+fit_data_1dose = Maaslin2(
+    input_data = df_abundance_1dose,
+    input_metadata = df_metadata_1dose,
+    output = 'to_delete',
+    fixed_effects = c("Time_of_Collection_categorical"),
+    reference = 'Time_of_Collection_categorical,10_days',
+    normalization = "TSS",
+    transform = "AST",
+    min_abundance = 0.001, 
+  min_prevalence = 0.1, 
+  max_significance = 0.05,
+  plot_heatmap = FALSE,
+  plot_scatter = FALSE
+)
+
+# Saving results as a table and excel file
+statistical_table_1dose = fit_data_1dose$results
+
+writexl::write_xlsx(statistical_table_1dose,'../Results/Maaslin2_Results_1dose.xlsx')
+```
+
+
+```{r}
+# Filtering for significant genera
+maaslin_output_1dose = statistical_table_1dose %>% mutate(log2fc = log2(exp(statistical_table_1dose$coef)))
+
+taxa_to_plot_1dose = maaslin_output_1dose %>% filter(qval < 0.05, abs(log2fc) >= -1)
+
+#Plotting results based on log2 fold change
+taxa_to_plot_1dose %>%
+  ggplot(aes(feature,log2fc, fill = feature)) +
+  geom_col(color = "black", width = 0.7) +           # Clean bar outlines
+  scale_fill_brewer(palette = "Set3") +             # Professional palette
+  theme_classic(base_size = 14) +                   # Clean theme, larger font
+  labs(
+    title = "Log2 Fold Change of Differential Abundance at 30 days Post Radiation Exposure (1Gy)",
+    x = "Log2 Fold Change",
+    y = "Genus"
+  ) +
+  theme(
+    legend.position = "none",                       # Remove redundant legend
+    plot.title = element_text(face = "bold"),       # Bold title
+    axis.title = element_text(face = "plain")
+  ) +
+  coord_flip()
+
+taxa_to_plot_1dose
+```
+Since significant genera for 1 Gy, will make relevant abundance plots down below.
+
+```{r}
+# 0.1 Gy
+
+# get significant genus
+taxa_to_plot_0.1dose = maaslin_output_0.1dose %>%
+  filter(qval < 0.05, abs(log2fc) >= -1) %>%
+  pull(feature)  %>% str_remove("g__") %>% 
+  replace_na("Unclassified")
+
+# find relative abundance
+ps_rel_0.1dose = transform_sample_counts(ps_0.1dose,
+                                         function(x) x / sum(x))
+# Melt taxa
+df_plot_0.1dose = psmelt(ps_rel_0.1dose)
+
+# Clean genus names
+df_plot_0.1dose$Genus = stringr::str_remove(df_plot_0.1dose$Genus, "g__")
+df_plot_0.1dose$Genus = stringr::str_trim(df_plot_0.1dose$Genus)
+df_plot_0.1dose$Genus[df_plot_0.1dose$Genus == "" | is.na(df_plot_0.1dose$Genus)] = "Unclassified"
+df_plot_feature_0.1dose = df_plot_0.1dose %>%
+  pull(Genus)
+
+head(maaslin_output_0.1dose$feature)
+head(df_plot_0.1dose$Genus)
+
+# Keep only significant genera
+df_plot_0.1dose = df_plot_0.1dose %>%
+  filter(Genus %in% taxa_to_plot_0.1dose)
+
+df_plot_0.1dose$Genus = stringr::str_replace_all(df_plot_0.1dose$Genus, "_", " ")
+df_plot_0.1dose$Time_of_Collection_categorical = stringr::str_replace_all(df_plot_0.1dose$Time_of_Collection_categorical, "_", " ") 
+
+
+boxplot_0.1dose = ggplot(df_plot_0.1dose,
+       aes(x = Time_of_Collection_categorical,
+           y = Abundance,
+           color = Time_of_Collection_categorical)) +
+  
+  geom_boxplot(aes(fill = Time_of_Collection_categorical),
+               outlier.shape = NA,
+               alpha = 0.3) +
+  
+  geom_jitter(width = 0.2, size = 2, alpha = 0.8) +
+  
+  facet_wrap(~ Genus, scales = "free_y") +
+  
+  theme_classic() +
+  
+  labs(title = "Relative Abundance of Significant Genera (0.1 Gy)",
+       x = "Days Post Radiation Exposure",
+       y = "Relative Abundance") +
+  
+  theme(strip.text = element_text(face = "italic")) +
+  
+  # Soft pink + purple
+  scale_color_manual(values = c("10 days" = "#F4A7B9",
+                                "30 days" = "#B57EDC")) +
+  scale_fill_manual(values = c("10 days" = "#F4A7B9",
+                               "30 days" = "#B57EDC"))
+boxplot_0.1dose
+
+ggsave("../Results/RP_differential_abundance_0.1dose.png")
+```
+```{r}
+# get significant genus
+taxa_to_plot_1dose = maaslin_output_1dose %>%
+  filter(qval < 0.05, abs(log2fc) >= -1) %>%
+  pull(feature)  %>% str_remove("g__") %>% 
+  replace_na("Unclassified")
+
+# find relative abundance
+ps_rel_1dose = transform_sample_counts(ps_1dose,
+                                         function(x) x / sum(x))
+# Melt taxa
+df_plot_1dose = psmelt(ps_rel_1dose)
+
+# Clean genus names
+df_plot_1dose$Genus = stringr::str_remove(df_plot_1dose$Genus, "g__")
+df_plot_1dose$Genus = stringr::str_trim(df_plot_1dose$Genus)
+df_plot_1dose$Genus[df_plot_1dose$Genus == "" | is.na(df_plot_1dose$Genus)] = "Unclassified"
+df_plot_feature_1dose = df_plot_1dose %>%
+  pull(Genus)
+
+head(maaslin_output_1dose$feature)
+head(df_plot_1dose$Genus)
+
+# Keep only significant genera
+df_plot_1dose = df_plot_1dose %>%
+  filter(Genus %in% taxa_to_plot_1dose)
+
+df_plot_1dose$Genus = stringr::str_replace_all(df_plot_1dose$Genus, "_", " ")
+df_plot_1dose$Time_of_Collection_categorical = stringr::str_replace_all(df_plot_1dose$Time_of_Collection_categorical, "_", " ") 
+
+
+boxplot_1dose = ggplot(df_plot_1dose,
+       aes(x = Time_of_Collection_categorical,
+           y = Abundance,
+           color = Time_of_Collection_categorical)) +
+  
+  geom_boxplot(aes(fill = Time_of_Collection_categorical),
+               outlier.shape = NA,
+               alpha = 0.3) +
+  
+  geom_jitter(width = 0.2, size = 2, alpha = 0.8) +
+  
+  facet_wrap(~ Genus, scales = "free_y", labeller = label_wrap_gen(width = 20)) +
+  
+  theme_classic() +
+  
+  labs(title = "Relative Abundance of Significant Genera (1 Gy)",
+       x = "Days Post Radiation Exposure",
+       y = "Relative Abundance") +
+  
+  theme(strip.text = element_text(face = "italic")) +
+  
+  # Soft pink + purple
+  scale_color_manual(values = c("10 days" = "#F4A7B9",
+                                "30 days" = "#B57EDC")) +
+  scale_fill_manual(values = c("10 days" = "#F4A7B9",
+                               "30 days" = "#B57EDC"))
+boxplot_1dose
+
+ggsave("../Results/RP_differential_abundance_1dose.png")
+```
+
