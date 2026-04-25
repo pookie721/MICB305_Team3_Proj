@@ -181,6 +181,69 @@ plot = Sig_volcano1,
 width = 9, 
 height = 13)
 ```
+# Overall volcano plot with all dose groups
+```{r}
+overall_volcano <- ggplot(
+  volcano_df2,
+  aes(x = log2FoldChange, y = neglogFDR)
+) +
+  geom_point(aes(color = sig_direction), alpha = 0.7, size = 2.5) +
+  geom_text_repel(
+    data = volcano_df2 %>% filter(sig),
+    aes(label = str_trunc(description, 25), color = sig_direction),
+    size = 2.8,
+    force = 12,
+    force_pull = 0.5,
+    direction = "both",
+    box.padding = 0.5,
+    point.padding = 0.4,
+    segment.size = 0.3,
+    segment.color = "grey40",
+    segment.alpha = 0.7,
+    max.overlaps = Inf,
+    min.segment.length = 0,
+    max.iter = 10000,
+    seed = 42
+  ) +
+  facet_wrap(~ dose, labeller = labeller(dose = function(x) paste(x, "Gy"))) +
+  geom_vline(xintercept = 0, linetype = "dashed", linewidth = 0.4, color = "grey30") +
+  geom_hline(yintercept = -log10(0.05), linetype = "dashed", linewidth = 0.4, color = "grey30") +
+  scale_color_manual(
+    values = c(
+      "Not significant" = "grey78",
+      "Enriched" = "palevioletred",
+      "Depleted" = "olivedrab"
+    ),
+    name = "Pathway status"
+  ) +
+  scale_x_continuous(expand = expansion(mult = c(0.15, 0.15))) +
+  scale_y_continuous(expand = expansion(mult = c(0.05, 0.15))) +
+  labs(
+    title = "Dose-dependent changes in predicted microbial metabolic pathways",
+    x = "Higher at 10 days  \u2190  log2 fold change  \u2192  Higher at 30 days",
+    y = expression(-log[10]("FDR"))
+  ) +
+  theme_classic(base_size = 13) +
+  theme(
+    plot.title = element_text(face = "bold", hjust = 0.5),
+    legend.position = "right",
+    panel.border = element_rect(color = "black", fill = NA, linewidth = 0.8),
+    axis.title = element_text(face = "bold"),
+    axis.text = element_text(color = "black"),
+    strip.background = element_rect(fill = "grey95", color = "black", linewidth = 0.5),
+    strip.text = element_text(face = "bold")
+  )
+
+overall_volcano
+
+ggsave(
+  filename = "~/MICB305 GROUP/MM_Volcano_AllDoses.png",
+  plot = overall_volcano,
+  width = 10,
+  height = 8,
+  dpi = 200
+)
+```
 # Making Visuals- Bar Plot
 ```{r}
 bar_plot <- ggplot(significant, aes(x = reorder(feature, log2FoldChange), 
