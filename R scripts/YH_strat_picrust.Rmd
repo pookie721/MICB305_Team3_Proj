@@ -16,6 +16,8 @@ library(ggplot2)
 library(ggrepel)
 library(ComplexHeatmap)
 library(circlize)
+#install.packages("ggtext")
+library(ggtext)
 ```
 
 ### Functional abundance (MM - PICRUSt)
@@ -93,224 +95,506 @@ significant #37 pathways found
 # Load datasets
 path_contrib = read.delim('../Datasets/path_abun_contrib.tsv.gz', check.names = FALSE)
 taxonomy = read.delim('../Datasets/taxonomy.tsv', check.names = FALSE)
-#marker = read.delim('./Datasets/bac_marker_predicted_and_nsti.tsv.gz', check.names = FALSE)
 ```
 
 #### w/ ggplot
 
+-   <div>
+
+    ```{r}
+    # Wrangling for visualization :')
+
+    extract_family = function(tax_string) {
+      parts = strsplit(tax_string, "; ")[[1]]
+      family_part = parts[grepl("^f__", parts)]
+      if(length(family_part) > 0) {
+        return(gsub("^f__", "", family_part[1]))
+      } else {
+        return("Unclassified")
+      }
+    }
+
+    taxonomy = taxonomy %>%
+      mutate(family = sapply(Taxon, extract_family))
+
+    taxon_to_family = taxonomy %>%
+      select(`Feature ID`, family) %>%
+      distinct()
+
+    path_contrib_with_family = path_contrib %>%
+      left_join(taxon_to_family, by = c('taxon' = 'Feature ID')) %>%
+      mutate(taxon_name = ifelse(is.na(family), taxon, family))
+
+    contrib_joined = path_contrib_with_family %>%
+      left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
+        by = c('sample' = 'sample_names'))
+
+    all_pathways_by_dose = significant %>%
+      select(dose, feature) %>%
+      mutate(dose_categorical = paste0(dose, '_dose'))
+
+    top_taxa = contrib_joined %>%
+      inner_join(all_pathways_by_dose,
+                 by = c('function' = 'feature',
+                        'dose_categorical' = 'dose_categorical')) %>%
+      group_by(taxon_name) %>%
+      summarise(total = sum(norm_taxon_function_contrib), .groups = 'drop') %>%
+      pull(taxon_name)
+
+    ### Mean contribution per group
+    contrib_summary = contrib_joined %>%
+      inner_join(all_pathways_by_dose,
+                 by = c('function' = 'feature',
+                        'dose_categorical' = 'dose_categorical')) %>%
+      group_by(`function`, taxon_name, dose_categorical, Time_of_Collection_categorical) %>%
+      summarise(mean_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE), 
+                .groups = 'drop') %>%
+      mutate(taxon_short = taxon_name,
+             dose_label  = factor(dose_categorical,
+                                  levels = c('0_dose', '0.1_dose', '0.25_dose', '1_dose'),
+                                  labels = c('0 Gy\n(Sham)', '0.1 Gy', '0.25 Gy', '1 Gy')),
+             time_label  = factor(Time_of_Collection_categorical,
+                                  levels = c('10_days', '30_days'),
+                                  labels = c('10 Days Post-IR', '30 Days Post-IR')))
+
+    # Adding pathway descriptions into contrib_summary
+    pathway_descriptions <- pathway_annotation(
+      pathway = "MetaCyc",
+      daa_results_df = significant,
+      ko_to_kegg = FALSE
+    ) %>%
+      select(feature, description) %>%
+      distinct()
+
+    contrib_summary <- contrib_summary %>%
+      left_join(pathway_descriptions, by = c("function" = "feature")) %>%
+      mutate(pathway_label = ifelse(is.na(description), `function`, description))
+
+    # Difference heatmap (30 days - 10 days)
+    contrib_diff <- contrib_summary %>%
+      select(taxon_short, `function`, pathway_label, dose_label, time_label, mean_contrib) %>%
+      pivot_wider(names_from = time_label,
+                  values_from = mean_contrib,
+                  values_fill = 0) %>%
+      mutate(diff = `30 Days Post-IR` - `10 Days Post-IR`)
+
+    lim <- max(abs(range(contrib_diff$diff, na.rm = TRUE)))
+
+    ggplot(contrib_diff, aes(x = taxon_short, y = pathway_label, fill = diff)) +
+      geom_tile() +
+      geom_tile(fill = NA, color = 'white', linewidth = 0.25) +
+      geom_text(aes(label = round(diff, 3)), size = 2.5, color = 'black') +
+      scale_fill_gradientn(
+        colors = c('#2166ac', '#4575b4', '#91bfdb', '#d1e5f0', '#d3d3d3', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'),
+        values = scales::rescale(c(-lim, -lim*0.5, -lim*0.2, -0.05, 0, 0.05, lim*0.2, lim*0.5, lim)),
+        limits = c(-lim, lim),
+        name = 'Difference\n(30d - 10d)') +
+      facet_grid(dose_label ~ ., scales = 'free_y', space = 'free_y') +
+      theme_bw(base_size = 11) +
+      theme(
+        axis.text.y       = element_text(size = 10, color = 'black'),
+        axis.title        = element_text(color = 'black'),
+        strip.background  = element_rect(fill = 'grey85', color = NA),
+        strip.text        = element_text(face = 'bold', size = 10),
+        panel.spacing     = unit(0.5, 'lines'),
+        panel.grid.major  = element_blank(),
+        panel.grid.minor  = element_blank(),
+        panel.border      = element_rect(color = 'grey70', fill = NA, linewidth = 0.5),
+        legend.position   = 'right',
+        legend.key.height = unit(1.2, 'cm'),
+        axis.text.x       = ggtext::element_markdown(
+          angle = 40, hjust = 1, size = 11, face = 'italic', color = 'black')
+      ) +
+      scale_x_discrete(labels = function(x) {
+        highlight <- c('Enterobacteriaceae', 'Burkholderiaceae',
+                       'Lachnospiraceae', 'Oscillospiraceae')
+        ifelse(x %in% highlight,
+               paste0("<span style='color:#2166ac'>", x, "</span>"),
+               x)
+      }) +
+      labs(
+        x = 'Contributing Family',
+        y = 'Function',
+        title = 'Change in Taxon Contributions by Dose (30 Days - 10 Days)',
+      )
+
+    ggsave('../Results/YH_functional_contrib_heatmapDIFF(family).png', width = 14, height = 12, dpi = 300)
+
+
+
+    ##############################################################
+    ##################### SHAM COMPARISON ########################
+    ############################################################
+
+    # Get sham contributions separately for each timepoint
+    sham_contrib <- contrib_summary %>%
+      filter(dose_categorical == '0_dose') %>%
+      select(taxon_short, `function`, pathway_label, time_label, mean_contrib) %>%
+      rename(sham_contrib = mean_contrib)
+
+    # Calculate difference--> irradiated - sham at each timepoint
+    contrib_diff_vs_sham <- contrib_summary %>%
+      filter(dose_categorical %in% c('0.1_dose', '1_dose')) %>%
+      left_join(sham_contrib,
+                by = c('taxon_short', 'function', 'pathway_label', 'time_label')) %>%
+      mutate(sham_contrib = replace_na(sham_contrib, 0),
+             diff = mean_contrib - sham_contrib)
+
+    contrib_diff_vs_sham_delta <- contrib_diff_vs_sham %>%
+      select(taxon_short, `function`, pathway_label, dose_label, time_label, diff) %>%
+      pivot_wider(names_from = time_label,
+                  values_from = diff,
+                  values_fill = 0) %>%
+      mutate(delta = `30 Days Post-IR` - `10 Days Post-IR`)
+
+    lim_sham <- max(abs(range(contrib_diff_vs_sham$diff, na.rm = TRUE)))
+
+    ggplot(contrib_diff_vs_sham, aes(x = taxon_short, y = pathway_label, fill = diff)) +
+      geom_tile() +
+      geom_tile(fill = NA, color = 'white', linewidth = 0.25) +
+      geom_text(aes(label = round(diff, 3)), size = 2.5, color = 'black') +
+      scale_fill_gradientn(
+        colors = c('#2166ac', '#4575b4', '#91bfdb', '#d1e5f0', '#d3d3d3',
+                   '#fddbc7', '#f4a582', '#d6604d', '#b2182b'),
+        values = scales::rescale(c(-lim_sham, -lim_sham*0.5, -lim_sham*0.2, -0.05, 0,
+                                    0.05, lim_sham*0.2, lim_sham*0.5, lim_sham)),
+        limits = c(-lim_sham, lim_sham),
+        name = 'Difference\n(Irradiated - Sham)') +
+      facet_grid(dose_label ~ time_label, scales = 'free_y', space = 'free_y') +
+      theme_bw(base_size = 11) +
+      theme(
+        axis.text.y       = element_text(size = 10, color = 'black'),
+        axis.title        = element_text(color = 'black'),
+        strip.background  = element_rect(fill = 'grey85', color = NA),
+        strip.text        = element_text(face = 'bold', size = 10),
+        panel.spacing     = unit(0.5, 'lines'),
+        panel.grid.major  = element_blank(),
+        panel.grid.minor  = element_blank(),
+        panel.border      = element_rect(color = 'grey70', fill = NA, linewidth = 0.5),
+        legend.position   = 'right',
+        legend.key.height = unit(1.2, 'cm'),
+        axis.text.x       = ggtext::element_markdown(
+          angle = 40, hjust = 1, size = 11, face = 'italic', color = 'black')
+      ) +
+      labs(
+        x     = 'Contributing Family',
+        y     = NULL,
+        title = 'Taxon Contribution Difference vs Sham Control',
+      )
+
+    ggsave('../Results/YH_functional_contrib_heatmapDIFF_vsSham(family).png',
+           width = 20, height = 10, dpi = 300)
+
+    sham_check <- path_contrib_with_family %>%
+      left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
+                by = c('sample' = 'sample_names')) %>%
+      filter(dose_categorical == '0_dose',
+             `function` %in% significant$feature) %>%
+      group_by(`function`, taxon_name) %>%
+      summarise(mean_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE),
+                n_nonzero = sum(norm_taxon_function_contrib > 0),
+                .groups = 'drop') %>%
+      filter(mean_contrib > 0)
+
+    print(sham_check)
+    cat("Number of family-pathway combos with non-zero sham contributions:", nrow(sham_check), "\n")
+    ```
+
+    ```         
+    ```
+
+    </div>
+
 ```{r}
-# Wrangling for visualization :')
+# SHAM FIXED
+significant_pathways = significant$feature
 
-extract_family = function(tax_string) {
-  parts = strsplit(tax_string, "; ")[[1]]
-  family_part = parts[grepl("^f__", parts)]
-  if(length(family_part) > 0) {
-    return(gsub("^f__", "", family_part[1]))
-  } else {
-    return("Unclassified")
-  }
-}
-
-taxonomy = taxonomy %>%
-  mutate(family = sapply(Taxon, extract_family))
-
-taxon_to_family = taxonomy %>%
-  select(`Feature ID`, family) %>%
-  distinct()
-
-path_contrib_with_family = path_contrib %>%
-  left_join(taxon_to_family, by = c('taxon' = 'Feature ID')) %>%
-  mutate(taxon_name = ifelse(is.na(family), taxon, family))
-
-contrib_joined = path_contrib_with_family %>%
+sham_contrib_fixed <- path_contrib_with_family %>%
   left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
-    by = c('sample' = 'sample_names'))
+            by = c('sample' = 'sample_names')) %>%
+  filter(dose_categorical == '0_dose',
+         `function` %in% significant_pathways) %>%
+  left_join(pathway_descriptions, by = c('function' = 'feature')) %>%
+  mutate(
+    pathway_label = ifelse(is.na(description), `function`, description),
+    taxon_short = taxon_name,
+    time_label = factor(Time_of_Collection_categorical,
+                        levels = c('10_days', '30_days'),
+                        labels = c('10 Days Post-IR', '30 Days Post-IR'))
+  ) %>%
+  group_by(`function`, pathway_label, taxon_short, time_label) %>%
+  summarise(sham_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE),
+            .groups = 'drop')
 
-all_pathways_by_dose = significant %>%
-  select(dose, feature) %>%
-  mutate(dose_categorical = paste0(dose, '_dose'))
+# Irradiated - sham diff.
+contrib_diff_vs_sham_fixed <- contrib_summary %>%
+  filter(dose_categorical %in% c('0.1_dose', '1_dose')) %>%
+  left_join(sham_contrib_fixed,
+            by = c('taxon_short', 'pathway_label', 'time_label')) %>%
+  mutate(sham_contrib = replace_na(sham_contrib, 0),
+         diff = mean_contrib - sham_contrib)
 
-top_taxa = contrib_joined %>%
-  inner_join(all_pathways_by_dose,
-             by = c('function' = 'feature',
-                    'dose_categorical' = 'dose_categorical')) %>%
-  group_by(taxon_name) %>%
-  summarise(total = sum(norm_taxon_function_contrib), .groups = 'drop') %>%
-  pull(taxon_name)
+# Visualize
+lim_sham <- max(abs(range(contrib_diff_vs_sham_fixed$diff, na.rm = TRUE)))
 
-### Mean contribution per group
-contrib_summary = contrib_joined %>%
-  inner_join(all_pathways_by_dose,
-             by = c('function' = 'feature',
-                    'dose_categorical' = 'dose_categorical')) %>%
-  group_by(`function`, taxon_name, dose_categorical, Time_of_Collection_categorical) %>%
-  summarise(mean_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE), 
-            .groups = 'drop') %>%
-  mutate(taxon_short = taxon_name,
-         dose_label  = factor(dose_categorical,
-                              levels = c('0_dose', '0.1_dose', '0.25_dose', '1_dose'),
-                              labels = c('0 Gy\n(Sham)', '0.1 Gy', '0.25 Gy', '1 Gy')),
-         time_label  = factor(Time_of_Collection_categorical,
-                              levels = c('10_days', '30_days'),
-                              labels = c('10 Days Post-IR', '30 Days Post-IR')))
-
-# Generating heatmap (w/ ggplot)
-ggplot(contrib_summary, aes(x = taxon_short, y = `function`, fill = mean_contrib)) +
-  geom_tile() +
-  geom_tile(fill = NA, color = 'white',        # separate layer just for borders
-            linewidth = 0.25) +
-  scale_fill_gradientn(colors = c('white', '#ffffcc', '#fd8d3c', '#800026'),
-                       values = scales::rescale(c(0, 0.01, 0.5, 1)),
-                       name = 'Mean Norm.\nContribution') +
-  facet_grid(dose_label ~ time_label, scales = 'free_y', space  = 'free_y') + 
-  theme_bw(base_size = 10) +
-  theme(
-    axis.text.x       = element_text(angle = 40, hjust = 1, size = 10, face = 'italic'),
-    axis.text.y       = element_text(size = 9),
-    strip.background  = element_rect(fill = 'grey85', color = NA),
-    strip.text        = element_text(face = 'bold', size = 9),
-    panel.spacing     = unit(0.5, 'lines'),
-    panel.grid.major  = element_blank(),
-    panel.grid.minor  = element_blank(),
-    panel.border      = element_rect(color = 'grey70', fill = NA, linewidth = 0.5),
-    legend.position   = 'right',
-    legend.key.height = unit(1.2, 'cm')
-  ) +
-  labs(
-    x        = 'Contributing Phylum',
-    title    = 'Normalized Taxon Contributions',
-  )
-
-ggsave('../Results/aim4_strat_heatmap(family).png', width = 13, height = 9, dpi = 300)
-
-# Difference heatmap (30 days - 10 days)
-contrib_diff <- contrib_summary %>%
-  select(taxon_short, `function`, dose_label, time_label, mean_contrib) %>%
-  pivot_wider(names_from = time_label,
-              values_from = mean_contrib,
-              values_fill = 0) %>%        # NOTE: this replaces NA timepoints with 0! Since some taxon don't appear at all certain timepoints...i.e. so we can consider them to have 1 or -1 difference.
-  mutate(diff = `30 Days Post-IR` - `10 Days Post-IR`)
-
-lim <- max(abs(range(contrib_diff$diff, na.rm = TRUE)))
-
-ggplot(contrib_diff, aes(x = taxon_short, y = `function`, fill = diff)) +
+ggplot(contrib_diff_vs_sham_fixed, aes(x = taxon_short, y = pathway_label, fill = diff)) +
   geom_tile() +
   geom_tile(fill = NA, color = 'white', linewidth = 0.25) +
-  geom_text(aes(label = round(diff, 1)), size = 2.5, color = 'black') +
+  geom_text(aes(label = round(diff, 3)), size = 2.5, color = 'black') +
   scale_fill_gradientn(
-    colors = c('#2166ac', '#4575b4', '#91bfdb', '#d1e5f0', '#d3d3d3', '#fddbc7', '#f4a582', '#d6604d', '#b2182b'),
-    values = scales::rescale(c(-lim, -lim*0.5, -lim*0.2, -0.05, 0, 0.05, lim*0.2, lim*0.5, lim)),
-    limits = c(-lim, lim),
-    name = 'Difference\n(30d - 10d)') +
-  facet_grid(dose_label ~ ., scales = 'free_y', space = 'free_y') +
-  theme_bw(base_size = 10) +
+    colors = c('#2166ac', '#4575b4', '#91bfdb', '#d1e5f0', '#d3d3d3',
+               '#fddbc7', '#f4a582', '#d6604d', '#b2182b'),
+    values = scales::rescale(c(-lim_sham, -lim_sham*0.5, -lim_sham*0.2, -0.05, 0,
+                                0.05, lim_sham*0.2, lim_sham*0.5, lim_sham)),
+    limits = c(-lim_sham, lim_sham),
+    name = 'Difference\n(Irradiated - Sham)') +
+  facet_grid(dose_label ~ time_label, scales = 'free_y', space = 'free_y') +
+  theme_bw(base_size = 11) +
   theme(
-    axis.text.x       = element_text(angle = 40, hjust = 1, size = 10, face = 'italic'),
-    axis.text.y       = element_text(size = 9),
+    axis.text.y       = element_text(size = 10, color = 'black'),
+    axis.title        = element_text(color = 'black'),
     strip.background  = element_rect(fill = 'grey85', color = NA),
-    strip.text        = element_text(face = 'bold', size = 9),
+    strip.text        = element_text(face = 'bold', size = 10),
     panel.spacing     = unit(0.5, 'lines'),
     panel.grid.major  = element_blank(),
     panel.grid.minor  = element_blank(),
     panel.border      = element_rect(color = 'grey70', fill = NA, linewidth = 0.5),
     legend.position   = 'right',
-    legend.key.height = unit(1.2, 'cm')
+    legend.key.height = unit(1.2, 'cm'),
+    axis.text.x       = ggtext::element_markdown(
+      angle = 40, hjust = 1, size = 11, face = 'italic', color = 'black')
   ) +
   labs(
     x     = 'Contributing Family',
-    title = 'Change in Taxon Contributions by Dose (30 Days - 10 Days)',
+    y     = NULL,
+    title = 'Taxon Contribution Difference vs Sham Control',
   )
 
-ggsave('../Results/YH_functional_contrib_heatmapDIFF(family).png', width = 14, height = 10, dpi = 300)
+ggsave('../Results/YH_functional_contrib_heatmapDIFF_vsSham(family)_FIXED.png',
+       width = 20, height = 10, dpi = 300)
 ```
 
-#### w/ ComplexHeatmap
+### Correlation analysis
 
 ```{r}
-# Wrangling for visualization :')
+# Load phyloseq object
+ps_obj = readRDS('../Datasets/phyloseq_taxonomy.rds')
 
-extract_family = function(tax_string) {
+ps_genus = ps_obj %>%
+    tax_glom(taxrank = "Genus") %>%
+    transform_sample_counts(function(x) x/sum(x)*100)
+  
+  genus_abund = as.data.frame(otu_table(ps_genus))
+  if(taxa_are_rows(ps_genus)) genus_abund = t(genus_abund)
+  
+  # Clean family names
+  tax_genus = as.data.frame(tax_table(ps_genus))
+  genus_names = gsub("g__", "", tax_genus$Genus)
+  genus_names[is.na(genus_names) | genus_names == ""] = "Unclassified"
+  colnames(genus_abund) = trimws(genus_names)
+
+# Converting to long
+genus_names = make.unique(genus_names)
+  
+  colnames(genus_abund) = trimws(genus_names)
+
+genus_abund_long = genus_abund %>%
+  as.data.frame() %>%
+  rownames_to_column("sample") %>%
+  pivot_longer(-sample, names_to = "taxon_name", values_to = "abundance")
+
+# Significant pathways only
+significant_pathways = significant$feature
+
+# Geting contribution data at sample-taxon-pathway level
+
+extract_genus = function(tax_string) {
   parts = strsplit(tax_string, "; ")[[1]]
-  family_part = parts[grepl("^f__", parts)]
-  if(length(family_part) > 0) {
-    return(gsub("^f__", "", family_part[1]))
+  genus_part = parts[grepl("^g__", parts)]
+  if(length(genus_part) > 0) {
+    return(gsub("^g__", "", genus_part[1]))
   } else {
     return("Unclassified")
   }
 }
 
-taxonomy = taxonomy %>%
-  mutate(family = sapply(Taxon, extract_family))
+taxonomy_genus = taxonomy %>%
+  mutate(genus = sapply(Taxon, extract_genus))
 
-taxon_to_family = taxonomy %>%
-  select(`Feature ID`, family) %>%
+taxon_to_genus = taxonomy_genus %>%
+  select(`Feature ID`, genus) %>%
   distinct()
 
-path_contrib_with_family = path_contrib %>%
-  left_join(taxon_to_family, by = c('taxon' = 'Feature ID')) %>%
-  mutate(taxon_name = ifelse(is.na(family), taxon, family))
+path_contrib_with_genus = path_contrib %>%
+  left_join(taxon_to_genus, by = c('taxon' = 'Feature ID')) %>%
+  mutate(taxon_name = ifelse(is.na(genus), taxon, genus))
 
-contrib_joined = path_contrib_with_family %>%
-  left_join(meta %>% select(sample_names, dose_categorical, Time_of_Collection_categorical),
-    by = c('sample' = 'sample_names'))
+contrib_sample_level_genus = path_contrib_with_genus %>%
+  filter(`function` %in% significant_pathways) %>%
+  group_by(sample, taxon_name, `function`) %>%
+  summarise(contribution = sum(norm_taxon_function_contrib, na.rm = TRUE),
+            .groups = "drop")
 
-all_pathways_by_dose = significant %>%
-  select(dose, feature) %>%
-  mutate(dose_categorical = paste0(dose, '_dose'))
+# Keeping only samples and taxa present in both datasets
+correlation_data = genus_abund_long %>%
+  inner_join(contrib_sample_level_genus, by = c("sample", "taxon_name"))
 
-# Top taxa
+correlation_data = correlation_data %>%
+  left_join(meta %>% select(sample_names, dose, Time_of_Collection_categorical), 
+            by = c("sample" = "sample_names"))
 
-top_taxa = contrib_joined %>%
-  inner_join(all_pathways_by_dose,
-             by = c('function' = 'feature',
-                    'dose_categorical' = 'dose_categorical')) %>%
-  group_by(taxon_name) %>%
-  summarise(total = sum(norm_taxon_function_contrib), .groups = 'drop') %>%
-  pull(taxon_name)
+correlation_data = correlation_data %>%
+  left_join(pathway_descriptions, by = c("function" = "feature")) %>%
+  mutate(pathway_label = ifelse(is.na(description), `function`, description))
 
-### Mean contribution per group
-contrib_summary = contrib_joined %>%
-  inner_join(all_pathways_by_dose,
-             by = c('function' = 'feature',
-                    'dose_categorical' = 'dose_categorical')) %>%
-  group_by(`function`, taxon_name, dose_categorical, Time_of_Collection_categorical) %>%
-  summarise(mean_contrib = mean(norm_taxon_function_contrib, na.rm = TRUE), 
-            .groups = 'drop') %>%
-  mutate(taxon_short = taxon_name,
-         dose_label  = factor(dose_categorical,
-                              levels = c('0_dose', '0.1_dose', '0.25_dose', '1_dose'),
-                              labels = c('0 Gy (Sham)', '0.1 Gy', '0.25 Gy', '1 Gy')),
-         time_label  = factor(Time_of_Collection_categorical,
-                              levels = c('10_days', '30_days'),
-                              labels = c('10 Days Post-IR', '30 Days Post-IR'))) 
+```
 
+```{r}
 
+# Corr. for each condition (w/ error handling)
+calculate_correlations <- function(data, dose_val, time_val, min_samples = 4) {
+  
+  # Subset data
+  subset_data = data %>%
+    filter(dose == dose_val, Time_of_Collection_categorical == time_val)
+  
+  if(nrow(subset_data) < 3) return(NULL)
+  
+  # Correlation for each taxon-pathway pair
+  results = subset_data %>%
+    group_by(taxon_name, `function`, pathway_label) %>%
+    summarise(
+      n_samples = n(),
+      # caluclate if enough samples + variation in both variables
+      correlation = if(n() >= min_samples & var(abundance) > 0 & var(contribution) > 0) {
+        cor(abundance, contribution, method = "spearman")
+      } else {
+        NA_real_
+      },
+      p_value = if(n() >= min_samples & var(abundance) > 0 & var(contribution) > 0) {
+        cor.test(abundance, contribution, method = "spearman")$p.value
+      } else {
+        NA_real_
+      },
+      mean_abundance = mean(abundance, na.rm = TRUE),
+      mean_contribution = mean(contribution, na.rm = TRUE),
+      .groups = "drop"
+    ) %>%
+    filter(!is.na(correlation)) %>%
+    mutate(
+      dose = dose_val,
+      time = time_val,
+      significant = ifelse(!is.na(p_value), p_value < 0.05, FALSE),
+      direction = ifelse(correlation > 0, "positive", "negative"),
+      strength = case_when(
+        abs(correlation) >= 0.7 ~ "strong",
+        abs(correlation) >= 0.5 ~ "moderate",
+        abs(correlation) >= 0.3 ~ "weak",
+        TRUE ~ "negligible"
+      )
+    )
+  
+  return(results)
+}
 
-# Generating heatmap (w/ pheatmap)
-mat <- contrib_summary %>%
-  select(taxon_short, `function`, mean_contrib) %>%
-  group_by(taxon_short, `function`) %>%
-  summarise(mean_contrib = mean(mean_contrib, na.rm = TRUE), .groups = "drop") %>%
-  pivot_wider(names_from = `function`,
-              values_from = mean_contrib,
-              values_fill = 0) %>%
-  column_to_rownames("taxon_short") %>%
-  as.matrix()
+# Run for each combination of dose and time...
+dose_levels = c(0, 0.1, 0.25, 1)
+time_points = c("10_days", "30_days")
 
-col_fun <- colorRamp2(c(0, 0.5, 1), c("white", "#fdd49e", "#d7301f"))
+all_results = list()
 
-ht <- Heatmap(mat,
-              name = "Mean\nContribution",
-              col = col_fun,
-              cluster_rows = TRUE,
-              cluster_columns = TRUE,
-              row_names_gp = gpar(fontsize = 8),
-              column_names_gp = gpar(fontsize = 7),
-              column_names_rot = 45,
-              rect_gp = gpar(col = "grey", lwd = 0.5))
+for(d in dose_levels) {
+  for(t in time_points) {
+    cat("\nCalculating for dose =", d, "Gy, time =", t, "\n")
+    all_results[[paste0(d, "_", t)]] = calculate_correlations(correlation_data, d, t, min_samples = 4)
+  }
+}
 
-png("../Results/YH_functional_contrib_COMPLEXheatmap.png",
-    width = 9, height = 5, units = "in", res = 300)
-draw(ht, heatmap_legend_side = "right")
-dev.off()
+# Combining results
+correlation_df = bind_rows(all_results)
+
+# Significant positive correlations only
+functional_drivers = correlation_df %>%
+  filter(
+    direction == "positive",
+    significant == TRUE,
+    strength %in% c("strong", "moderate")
+  ) %>%
+  arrange(dose, time, desc(correlation))
+
+if(nrow(functional_drivers) > 0) {
+  cat("\nTOP FUNCTIONAL DRIVERS:\n")
+  print(functional_drivers %>% 
+          select(taxon_name, pathway_label, dose, time, correlation, strength, n_samples) %>%
+          head(20))
+} else {
+  cat("\nNo strong/moderate correlations. Showing all significant positive:\n")
+  all_sig = correlation_df %>%
+    filter(direction == "positive", significant == TRUE) %>%
+    arrange(dose, time, desc(correlation))
+  
+  if(nrow(all_sig) > 0) {
+    print(all_sig %>% 
+            select(taxon_name, pathway_label, dose, time, correlation, n_samples) %>%
+            head(20))
+  } else {
+    cat("No significant positive correlations found.\n")
+    cat("Showing all correlations (any direction) with p < 0.05:\n")
+    correlation_df %>%
+      filter(significant == TRUE) %>%
+      select(taxon_name, pathway_label, dose, time, correlation, direction) %>%
+      head(20) %>%
+      print()
+  }
+}
+```
+
+```{r}
+# Pathways are higher at 10_days
+decreased_pathways = significant %>%
+  filter(direction == "Higher at 10_days") %>%
+  select(dose, feature)
+
+print(decreased_pathways)
+
+# Filter
+functional_drivers_focused = functional_drivers %>%
+  inner_join(decreased_pathways, by = c("dose", "function" = "feature"))
+
+# Check persistence! (which taxa maintain correlation at both 10d and 30d)
+persistent_focused = functional_drivers_focused %>%
+  select(taxon_name, pathway_label, dose, time, correlation) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = correlation,
+    values_fill = NA
+  ) %>%
+  filter(!is.na(`10_days`), !is.na(`30_days`)) %>%
+  mutate(
+    persistent = `10_days` >= 0.5 & `30_days` >= 0.5,
+    transient = `10_days` >= 0.5 & `30_days` < 0.5
+  )
+```
+
+```{r}
+# PRIORITY MATRIX
+
+priority_matrix_simple = functional_drivers_focused %>%
+  select(taxon_name, pathway_label, time, correlation) %>%
+  pivot_wider(
+    names_from = time,
+    values_from = correlation,
+    values_fill = NA
+  ) %>%
+  mutate(
+    persistent = !is.na(`10_days`) & !is.na(`30_days`),
+    corr_10d = `10_days`,
+    corr_30d = `30_days`
+  ) %>%
+  select(taxon_name, pathway_label, corr_10d, corr_30d, persistent) %>%
+  arrange(desc(persistent), desc(corr_10d))
+
+print(priority_matrix_simple)
+
+write.csv(priority_matrix_simple, "../Results/aim4_priority_matrix_genus.csv", row.names = FALSE)
 ```

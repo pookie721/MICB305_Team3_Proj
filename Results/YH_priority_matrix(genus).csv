@@ -1,0 +1,22 @@
+"taxon_name","pathway_label","corr_10d","corr_30d","persistent"
+"Romboutsia","pyrimidine deoxyribonucleosides salvage",0.963636363636364,0.933333333333333,TRUE
+"Family_XIII_UCG-001","L-lysine biosynthesis II",0.903030303030303,0.928571428571429,TRUE
+"Lactobacillus","L-lysine biosynthesis II",0.903030303030303,0.842424242424242,TRUE
+"Tuzzerella","L-lysine biosynthesis II",0.890909090909091,0.939393939393939,TRUE
+"Turicibacter","L-lysine biosynthesis II",0.878787878787879,0.733333333333333,TRUE
+"Dubosiella","formaldehyde assimilation II (RuMP Cycle)",0.866666666666667,0.915151515151515,TRUE
+"Oscillibacter","L-lysine biosynthesis II",0.866666666666667,0.927272727272727,TRUE
+"Dubosiella","L-lysine biosynthesis II",0.854545454545454,0.963636363636364,TRUE
+"Candidatus_Arthromitus","cyanophycin metabolism",0.966666666666667,NA,FALSE
+"Candidatus_Arthromitus","pyrimidine deoxyribonucleosides salvage",0.966666666666667,NA,FALSE
+"GCA-900066575","inosine-5'-phosphate biosynthesis III",0.892857142857143,NA,FALSE
+"Clostridia_UCG-014","L-lysine biosynthesis II",0.816666666666667,NA,FALSE
+"[Eubacterium]_brachy_group","fructan biosynthesis",0.793939393939394,NA,FALSE
+"Lactobacillus","fructan biosynthesis",0.709090909090909,NA,FALSE
+"[Eubacterium]_nodatum_group","L-lysine biosynthesis II",NA,0.933333333333333,FALSE
+"ASF356","inosine-5'-phosphate biosynthesis III",NA,0.866666666666667,FALSE
+"Clostridium_sensu_stricto_1","L-lysine biosynthesis II",NA,0.818181818181818,FALSE
+"Bifidobacterium","PWY3O-4107",NA,0.793939393939394,FALSE
+"Candidatus_Arthromitus","PWY3O-4107",NA,0.766666666666667,FALSE
+"GCA-900066575","formaldehyde assimilation II (RuMP Cycle)",NA,0.745454545454545,FALSE
+"Clostridium_sensu_stricto_1","cyanophycin metabolism",NA,0.648484848484848,FALSE
