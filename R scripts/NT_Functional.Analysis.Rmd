@@ -36,7 +36,7 @@ library(patchwork)
 ### Load phyloseq object
 
 ```{r Load initial dataset}
-phyloseq = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/phyloseq_taxonomy.rds")
+phyloseq = readRDS("~/Desktop/MICB305_Team3_Proj/Datasets/phyloseq_taxonomy.rds")
 
 ```
 
@@ -52,7 +52,7 @@ data.frame()%>%
 rownames_to_column("sample_name")
 
 
-ko=read.delim("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/path_abun_unstrat.tsv", row.names=1, 
+ko=read.delim("~/Desktop/MICB305_Team3_Proj/Datasets/path_abun_unstrat.tsv", row.names=1, 
 check.names=FALSE)
 
 ```
@@ -74,9 +74,9 @@ daa_annotated_results_df = pathway_annotation(pathway="MetaCyc",
                                               daa_results_df=daa_results_df,
                                               ko_to_kegg=FALSE)
 
-saveRDS(daa_annotated_results_df,"~/Desktop/group_project/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
+saveRDS(daa_annotated_results_df,"~/Desktop/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
 
-daa_annotated_results_df = readRDS("~/Desktop/group_project/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
+daa_annotated_results_df = readRDS("~/Desktop/MICB305_Team3_Proj/Datasets/daa_annotated_results_df.rds")
 view(daa_annotated_results_df)
 
 ```
@@ -249,7 +249,7 @@ volcano_1
 all_volcano_draft <- (volcano_0+volcano_01)/(volcano_025+volcano_1)
 all_volcano_draft
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_draft.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_volcano_draft.png", 
 	plot=all_volcano_draft, width=20, height=20, limitsize = FALSE) 
 
 ```
@@ -293,9 +293,9 @@ labs(title = "0.1 Gy", x = "GLM Coefficient", y = "-log10(P)") + theme(legend.po
 
 volcano_01_improved
 
-ggsave("~/Desktop/group_project/NT_volcano_01.png", 
+ggsave("~/Desktop/NT_volcano_01.png", 
 	plot=volcano_01_improved, width=10, height=10, limitsize = FALSE) 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_01.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_volcano_01.png", 
 	plot=volcano_01_improved, width=10, height=10, limitsize = FALSE) 
 
 
@@ -336,10 +336,10 @@ labs(title = "1 Gy",  x = "GLM Coefficient", y = "-log10(P)") + theme(legend.pos
 
 volcano_1_improved
 
-ggsave("~/Desktop/group_project/NT_volcano_1.png", 
+ggsave("~/Desktop/NT_volcano_1.png", 
 	plot=volcano_1_improved, width=10, height=10, limitsize = FALSE) 
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_volcano_1.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_volcano_1.png", 
 	plot=volcano_1_improved, width=10, height=10, limitsize = FALSE) 
 
 ```
@@ -396,7 +396,7 @@ top_1=daa_annotated_dose_1 |>
 ko_significant_1 <- ko[rownames(ko) %in% top_1$feature,
                      colnames(ko) %in% meta1$sample_name]
 
-source("~/Desktop/group_project/ggpicrust2_errorbar_function_fixed.R")
+source("~/Desktop/ggpicrust2_errorbar_function_fixed.R")
  
 
 
@@ -424,9 +424,9 @@ peb1=pathway_errorbar_fixed(abundance=ko_significant_1,
                   p_value_bar=TRUE,
                   x_lab="description")
 
-ggsave("~/Desktop/group_project/NTpeb01Gy.unrare.png", plot=peb01, width=35, height=15, limitsize=FALSE)
+ggsave("~/Desktop/NTpeb01Gy.unrare.png", plot=peb01, width=35, height=15, limitsize=FALSE)
  
-ggsave("~/Desktop/group_project/NTpeb1Gy.unrare.png", plot=peb1, width=35, height=15, limitsize=FALSE)
+ggsave("~/Desktop/NTpeb1Gy.unrare.png", plot=peb1, width=35, height=15, limitsize=FALSE)
 
 ```
 
@@ -470,9 +470,9 @@ bar_plot_01 <- ggplot(bp_01, aes(x = sign_log10p, y = description, fill = status
 
 bar_plot_01
 
-ggsave("~/Desktop/group_project/NT_barplot_01.png", plot=bar_plot_01, width=10, height=15, limitsize=FALSE)
+ggsave("~/Desktop/NT_barplot_01.png", plot=bar_plot_01, width=10, height=15, limitsize=FALSE)
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_barplot_01.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_barplot_01.png", 
 	plot=bar_plot_01, width=10, height=10, limitsize = FALSE) 
 
 
@@ -513,9 +513,9 @@ bar_plot_1 <- ggplot(bp_1, aes(x = sign_log10p, y = description, fill = status))
 bar_plot_1
 
 
-ggsave("~/Desktop/group_project/NT_barplot_1.png", plot=bar_plot_1, width=10, height=15, limitsize=FALSE)
+ggsave("~/Desktop/NT_barplot_1.png", plot=bar_plot_1, width=10, height=15, limitsize=FALSE)
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_barplot_1.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_barplot_1.png", 
 	plot=bar_plot_1, width=10, height=10, limitsize = FALSE) 
 
 
@@ -525,7 +525,7 @@ ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_barplot_1.png",
 plot <- bar_plot_01 + bar_plot_1 + plot_layout(guides = "collect") +
   theme(legend.position = "right")
 
-ggsave("~/Desktop/group_project/MICB305_Team3_Proj/Results/NT_fullbarplot.png", 
+ggsave("~/Desktop/MICB305_Team3_Proj/Results/NT_fullbarplot.png", 
 	plot=plot, width=20, height=10, limitsize = FALSE) 
 
 ggsave("~/Desktop/NT_fullbarplot.png", 
